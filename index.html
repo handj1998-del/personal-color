@@ -17,7 +17,7 @@
 </head>
 <body data-screen="home">
 <header class="topbar">
-  <div class="brand"><span class="logo" aria-hidden="true"></span>퍼스널컬러 진단</div>
+  <div class="brand" id="brand"><span class="logo" aria-hidden="true"></span>퍼스널컬러 진단</div>
   <div class="steps" id="steps" aria-hidden="true"></div>
   <button class="btn ghost" id="btnReset" type="button">⟲ 처음으로</button>
 </header>
@@ -39,6 +39,7 @@
         <ellipse id="ovalLine" class="ovalline"/>
       </g>
       <g id="layerPaper"><rect id="paperRect" class="paperline"/></g>
+      <g id="layerQr"><rect id="qrRect" class="qrline"/></g>
       <g id="layerDrape">
         <path id="drapeL" clip-path="url(#clipL)"/>
         <path id="drapeR" clip-path="url(#clipR)"/>
@@ -57,6 +58,7 @@
   <section class="panel" id="panel">
     <!-- 홈 -->
     <div class="screen" data-for="home">
+      <button class="linkbtn" id="btnAdmin" type="button">관리자</button>
       <h1>퍼스널컬러 진단</h1>
       <p class="lead">카메라로 피부·눈동자·머리카락 색을 측정해 사계절 8타입 중 어울리는 타입을 추정하고, 드레이핑으로 직접 비교해 확인해요.</p>
       <div class="bigbtns">
@@ -66,7 +68,80 @@
       <ul class="notes">
         <li>사진은 저장·전송하지 않고 이 기기 안에서만 분석해요.</li>
         <li>인터넷 연결 없이도 동작해요.</li>
+        <li>진단을 시작하려면 매장에서 받은 <b>진단권 QR</b>이 필요해요.</li>
       </ul>
+      <p class="status ok" id="homePass" hidden></p>
+    </div>
+
+    <!-- 진단권(QR) 확인 -->
+    <div class="screen" data-for="ticket">
+      <h2>진단권 확인</h2>
+      <p class="lead sm">진단권 카드의 <b>QR 코드</b>를 화면의 네모 안에 보여 주세요.</p>
+      <div class="status" id="ticketMsg">QR 코드를 찾는 중이에요…</div>
+      <div class="bigbtns">
+        <label class="manual" for="ticketCode">카메라로 안 읽히면 카드의 코드를 입력해 주세요
+          <input id="ticketCode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"></label>
+        <button class="btn primary xl" id="btnTicketCode" type="button">코드로 확인</button>
+        <button class="btn ghost" id="btnTicketCancel" type="button">취소</button>
+      </div>
+    </div>
+
+    <!-- 관리자 로그인 -->
+    <div class="screen" data-for="adminLogin">
+      <h2>관리자 로그인</h2>
+      <p class="lead sm">관리자 비밀번호를 입력해 주세요.</p>
+      <input id="adminPw" class="pwinput" type="password" inputmode="numeric" maxlength="12" autocomplete="off" aria-label="관리자 비밀번호">
+      <div class="status" id="adminLoginMsg" hidden></div>
+      <div class="bigbtns">
+        <button class="btn primary xl" id="btnAdminLogin" type="button">로그인</button>
+        <button class="btn ghost" id="btnAdminCancel" type="button">취소</button>
+      </div>
+    </div>
+
+    <!-- 관리자 -->
+    <div class="screen" data-for="admin">
+      <div class="adminhead"><h2>관리자 모드</h2><span class="chip" id="adminPassChip"></span></div>
+      <div class="tabs" role="tablist">
+        <button class="tab on" id="tabIssue" type="button" role="tab">진단권 발급</button>
+        <button class="tab" id="tabList" type="button" role="tab">발급 목록</button>
+        <button class="tab" id="tabSettings" type="button" role="tab">설정</button>
+      </div>
+      <div id="admIssue">
+        <div class="issuerow">
+          <label>수량 <input id="issueQty" type="number" min="1" max="50" value="10" inputmode="numeric"></label>
+          <label>유효기간 <select id="issueExp"><option value="0">기한 없음</option><option value="30">30일</option><option value="90" selected>90일</option><option value="180">180일</option><option value="365">1년</option><option value="date">날짜 지정</option></select></label>
+          <input id="issueDate" type="date" hidden aria-label="만료일">
+          <button class="btn primary" id="btnIssue" type="button">발급하기</button>
+        </div>
+        <div id="issueResult" hidden>
+          <div class="cardnav"><button class="btn" id="btnCardPrev" type="button" aria-label="이전 카드">◀</button><span id="cardIdx"></span><button class="btn" id="btnCardNext" type="button" aria-label="다음 카드">▶</button></div>
+          <img id="cardPreview" class="cardpreview" alt="진단권 카드 미리보기">
+          <div class="issueacts">
+            <button class="btn" id="btnPrintView" type="button">🖨 A4 인쇄</button>
+            <button class="btn" id="btnCardPng" type="button">카드 PNG</button>
+            <button class="btn" id="btnPdf" type="button">PDF 저장</button>
+          </div>
+        </div>
+      </div>
+      <div id="admList" hidden>
+        <p class="sub" id="listSummary"></p>
+        <div class="qlist" id="qList"></div>
+        <button class="btn" id="btnPrintUnused" type="button">미사용 코드 다시 인쇄</button>
+      </div>
+      <div id="admSettings" hidden>
+        <h3>비밀번호 변경</h3>
+        <div class="pwgrid">
+          <label>현재 비밀번호 <input id="pwCur" type="password" inputmode="numeric" maxlength="12" autocomplete="off"></label>
+          <label>새 비밀번호 (4~12자) <input id="pwNew" type="password" inputmode="numeric" maxlength="12" autocomplete="off"></label>
+          <label>새 비밀번호 확인 <input id="pwNew2" type="password" inputmode="numeric" maxlength="12" autocomplete="off"></label>
+        </div>
+        <button class="btn" id="btnPwChange" type="button">비밀번호 변경</button>
+        <p class="note">QR 1회 사용 기록과 비밀번호는 이 기기에만 저장돼요. 다른 기기와 공유되지 않아요.</p>
+      </div>
+      <div class="bigbtns">
+        <button class="btn primary" id="btnGrantPass" type="button">QR 없이 진단 1회 허가</button>
+        <button class="btn" id="btnAdminLogout" type="button">로그아웃</button>
+      </div>
     </div>
 
     <!-- 동의 -->
@@ -192,6 +267,10 @@
     <p id="modalMsg"></p>
     <div class="modal-btns"><button class="btn" id="modalNo" type="button">취소</button><button class="btn primary" id="modalYes" type="button">확인</button></div>
   </div>
+</div>
+<div class="printview" id="printView" hidden>
+  <div class="pv-bar"><b id="pvTitle">인쇄 미리보기</b><button class="btn primary" id="btnDoPrint" type="button">인쇄하기</button><button class="btn" id="btnSheetPng" type="button">시트 PNG</button><button class="btn" id="btnPvPdf" type="button">PDF</button><button class="btn" id="btnPvClose" type="button">닫기</button></div>
+  <div class="pv-pages" id="pvPages"></div>
 </div>
 <div class="toast" id="toast" hidden></div>
 <canvas id="work" hidden></canvas>

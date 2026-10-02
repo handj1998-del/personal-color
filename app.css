@@ -169,3 +169,49 @@ body[data-screen="drape"].has-stage .stage { height:52vh; height:clamp(180px, ca
 @media (orientation:landscape) and (min-width:800px) { .screen > .bigbtns.row > .btn, .screen > .bigbtns.row > .btn.primary { flex:1 1 0; } }
 @media (max-width:600px) { .card-head small { margin-top:12px; } .card-head h1 { font-size:28px; } .kw { font-size:16px; } .facerow { margin-top:8px; padding:8px 10px; } .fnote { font-size:13px; } }
 @media (max-width:600px) { .screen > .bigbtns > .btn:not(.primary) { font-size:16px; padding:6px 8px; } }
+/* ---------- 진단권(QR) · 관리자 ---------- */
+.overlay .qrline { fill:none; stroke:#fff; stroke-width:6; stroke-dasharray:28 14; }
+body[data-screen="ticket"].has-stage .stage { height:50vh; height:clamp(180px, calc(100dvh - 400px), 52dvh); }
+.lead.sm { font-size:17px; margin:4px 0 8px; }
+.status.bad { border-color:var(--bad); color:var(--bad); font-weight:700; background:#fdf0ee; }
+.manual { display:flex; flex-direction:column; gap:6px; margin:10px 0 0; font-size:15px; color:var(--sub); font-weight:600; }
+.manual input, .pwinput, .issuerow input, .issuerow select, .pwgrid input { font:inherit; font-size:18px; min-height:50px; border-radius:12px; border:2px solid var(--line); padding:0 12px; background:#fff; color:var(--ink); }
+.manual input { font-family:'DejaVu Sans Mono',Menlo,Consolas,monospace; letter-spacing:.5px; text-transform:uppercase; }
+.pwinput { width:100%; font-size:28px; letter-spacing:10px; text-align:center; margin:6px 0 10px; }
+.linkbtn { align-self:flex-end; margin-top:auto; background:none; border:0; color:var(--sub); font:inherit; font-size:14px; text-decoration:underline; padding:10px 4px; cursor:pointer; opacity:.75; }
+.adminhead { display:flex; align-items:center; gap:10px; flex-wrap:wrap; } .adminhead h2 { margin:0 0 8px; }
+[data-for="admin"] .tab { min-height:48px; font-size:16px; }
+.issuerow { display:grid; grid-template-columns:1fr 1.3fr; gap:8px; align-items:end; }
+.issuerow label { display:flex; flex-direction:column; gap:4px; font-weight:700; font-size:15px; } .issuerow input, .issuerow select { width:100%; min-width:0; }
+.issuerow #issueDate { grid-column:1/-1; } .issuerow #btnIssue { grid-column:1/-1; }
+.cardnav { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:10px 0 6px; font-weight:700; color:var(--sub); font-size:15px; } .cardnav .btn { min-width:52px; padding:0; }
+.cardpreview { display:block; width:100%; max-width:440px; margin:0 auto; aspect-ratio:90/50; border-radius:14px; box-shadow:0 6px 18px rgba(43,35,64,.25); background:#ddd; }
+.issueacts { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:10px; } .issueacts .btn { padding:6px; font-size:16px; }
+.sub { color:var(--sub); font-size:15px; }
+.qlist { display:flex; flex-direction:column; gap:6px; max-height:46dvh; overflow:auto; margin-bottom:10px; }
+.qrow { display:grid; grid-template-columns:auto 1fr auto 64px; gap:8px; align-items:center; background:#fff; border:1px solid var(--line); border-radius:12px; padding:6px 10px; font-size:15px; }
+.mono { font-family:'DejaVu Sans Mono',Menlo,Consolas,monospace; font-weight:700; } .qd { color:var(--sub); font-size:13px; }
+.st { font-weight:800; font-size:14px; padding:3px 8px; border-radius:99px; background:#eee8f4; color:var(--pri); white-space:nowrap; }
+.st-used { background:#e3f4ea; color:var(--ok); } .st-revoked { background:#fbe4e1; color:var(--bad); } .st-expired { background:#f3f0ee; color:var(--sub); }
+.btn.sm { min-height:44px; padding:4px 8px; font-size:15px; }
+.pwgrid { display:grid; gap:8px; margin-bottom:10px; } .pwgrid label { display:flex; flex-direction:column; gap:4px; font-weight:700; font-size:15px; }
+.printview { position:fixed; inset:0; z-index:25; background:#4a4452; display:flex; flex-direction:column; }
+.pv-bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px 14px; background:#2b2340; color:#fff; } .pv-bar b { flex:1 1 220px; font-size:16px; } .pv-bar .btn { min-height:48px; }
+.pv-pages { flex:1; overflow:auto; padding:16px; display:flex; flex-direction:column; align-items:center; gap:16px; }
+.pv-page { width:min(92vw, 640px); aspect-ratio:210/297; background:#fff; box-shadow:0 4px 16px rgba(0,0,0,.4); }
+@media (max-width:600px) { .qrow { grid-template-columns:auto 1fr 64px; } .qrow .qd { display:none; } }
+@media print {
+  @page { size:A4; margin:0; }
+  html, body { height:auto !important; overflow:visible !important; background:#fff; display:block; }
+  body > *:not(#printView) { display:none !important; }
+  #printView { position:static; display:block !important; background:#fff; } .pv-bar { display:none !important; }
+  .pv-pages { display:block; padding:0; overflow:visible; } .pv-page { display:block; width:210mm; height:297mm; box-shadow:none; break-after:page; page-break-after:always; }
+}
+/* 진단권·관리자 화면도 버튼을 한 화면에 */
+.screen > .bigbtns > .manual { flex-basis:100%; margin:0; }
+[data-for="ticket"] .bigbtns > .btn, [data-for="admin"] .bigbtns > .btn { flex:1 1 40%; }
+[data-for="ticket"] .bigbtns > .btn.primary { flex-grow:1.6; }
+@media (min-width:700px) { .issuerow { grid-template-columns:1fr 1.3fr 1fr; } .issuerow #btnIssue { grid-column:auto; } }
+@media (max-height:760px) { .cardpreview { max-width:min(440px, 68%); } .cardnav { margin:6px 0 4px; } .cardnav .btn { min-height:44px; } [data-for="admin"] .tab { min-height:44px; } .adminhead h2 { font-size:20px; margin-bottom:4px; } }
+.screen[data-for="home"] { position:relative; }
+.screen[data-for="home"] > .linkbtn { position:absolute; top:2px; right:2px; margin:0; min-height:40px; z-index:2; }

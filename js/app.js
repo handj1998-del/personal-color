@@ -3,12 +3,15 @@ import { analyzeImage, ovalGeom, paperGeom, paperRgb, estimateCast } from './ana
 import { SEASONS, SEASON_ORDER, drapeRounds } from './seasons.js';
 import { loadFace, detectFace, faceStatus } from './face.js';
 import { renderCardCanvas } from './card.js';
+import { createStore, admit, STORAGE_PREFIX } from './ticket.js';
+import { initDecoder, decodeVideo } from './qr.js';
+import { initAdmin } from './admin.js';
 import { faceMetrics, classifyFaceShape, FACE_SHAPES, FACE_ORDER, GLASS_SHAPES, LIPS, FRAMES, glassesSvg, browSvg } from './style.js';
 
 const $ = (id) => document.getElementById(id);
 const SVGNS = 'http://www.w3.org/2000/svg';
-const CAMERA_SCREENS = new Set(['calib', 'capture', 'drape']);
-const STEP_LABELS = [['consent', '동의'], ['calib', '보정'], ['capture', '촬영'], ['auto', '분석'], ['drape', '드레이핑'], ['result', '결과']];
+const CAMERA_SCREENS = new Set(['ticket', 'calib', 'capture', 'drape']);
+const STEP_LABELS = [['ticket', '진단권'], ['consent', '동의'], ['calib', '보정'], ['capture', '촬영'], ['auto', '분석'], ['drape', '드레이핑'], ['result', '결과']];
 
 const fresh = () => ({ screen: 'home', wb: null, auto: null, votes: [], roundIdx: 0, rounds: null, browse: { L: 'spring_light', R: 'summer_light', i: 0 }, drapeTab: 'rounds', final: null, drapeOnly: false, faceShape: null, resTab: 'color' });
 let S = fresh();
@@ -26,7 +29,7 @@ function ask(msg) {
 }
 function renderSteps() {
   const idx = STEP_LABELS.findIndex(([k]) => k === S.screen || (S.screen === 'analyzing' && k === 'auto'));
-  $('steps').innerHTML = S.screen === 'home' ? '' : STEP_LABELS.map(([k, l], i) => `<span class="${i < idx ? 'done' : i === idx ? 'cur' : ''}">${l}</span>`).join('');
+  $('steps').innerHTML = S.screen === 'home' || S.screen.startsWith('admin') ? '' : STEP_LABELS.map(([k, l], i) => `<span class="${i < idx ? 'done' : i === idx ? 'cur' : ''}">${l}</span>`).join('');
 }
 async function go(screen) {
   const my = ++seq;
@@ -37,6 +40,8 @@ async function go(screen) {
   document.body.classList.toggle('has-stage', needCam);
   if (needCam) { await startCamera(); if (my !== seq) return; } else stopCamera();
   setOverlay(screen);
+  if (screen === 'ticket') startScan(); else stopScan();
+  if (screen === 'home') renderHomePass();
   if (screen === 'calib') renderCalibStatus();
   if (screen === 'capture') $('captureCalib').textContent = S.wb ? '✅ 흰 종이 보정 적용 중' : '⚠️ 보정 없이 측정해요 (조명 색의 영향을 받을 수 있어요)';
   if (screen === 'drape') renderDrape();
@@ -96,6 +101,8 @@ function setOverlay(screen) {
   $('layerOval').style.display = screen === 'capture' || screen === 'drape' ? '' : 'none';
   $('layerOval').classList.toggle('faint', screen === 'drape');
   $('layerPaper').style.display = screen === 'calib' ? '' : 'none';
+  const qs = Math.min(W, H) * 0.62, qr = $('qrRect'); qr.setAttribute('x', (W - qs) / 2); qr.setAttribute('y', (H - qs) / 2); qr.setAttribute('width', qs); qr.setAttribute('height', qs);
+  $('layerQr').style.display = screen === 'ticket' ? '' : 'none';
   $('layerDrape').style.display = screen === 'drape' ? '' : 'none';
   // 드레이프 모양: 턱 아래에서 어깨까지
   const top = o.cy + o.ry * 0.94, side = Math.min(H - 4, o.cy + o.ry * 1.18);
@@ -125,7 +132,7 @@ function startMeter() {
   clearInterval(meterTimer);
   const small = document.createElement('canvas');
   meterTimer = setInterval(() => {
-    if (!stream || !video.videoWidth || S.screen === 'drape') { if (S.screen === 'drape') $('meter').innerHTML = ''; return; }
+    if (!stream || !video.videoWidth || S.screen === 'drape' || S.screen === 'ticket') { if (S.screen === 'drape' || S.screen === 'ticket') $('meter').innerHTML = ''; return; }
     const W = 160, H = Math.round(160 * video.videoHeight / video.videoWidth); small.width = W; small.height = H;
     const c = small.getContext('2d', { willReadFrequently: true }); c.drawImage(video, 0, 0, W, H);
     const img = c.getImageData(0, 0, W, H);
@@ -151,8 +158,48 @@ function startMeter() {
 function castName([, a, b]) { if (Math.abs(b) >= Math.abs(a)) return b > 0 ? '노란빛' : '푸른빛'; return a > 0 ? '붉은빛' : '초록빛'; }
 
 // ---------- 홈/동의 ----------
-$('btnStart').onclick = () => { S.drapeOnly = false; go('consent'); };
-$('btnDrapeOnly').onclick = () => { S.drapeOnly = true; go('consent'); };
+// ---------- 진단권(QR) ----------
+const store = createStore();
+function startFlow(drapeOnly) {
+  S.drapeOnly = drapeOnly;
+  const a = store.active();
+  if (a) { S.ticket = a.id; toast('진행 중인 진단권으로 이어서 진행해요.'); return go('consent'); }
+  if (store.takePass()) { const id = 'PASS' + Date.now().toString(36).toUpperCase(); store.markUsed(id, Date.now(), 'admin'); store.startSession(id, 'admin'); S.ticket = id; toast('관리자 허가로 QR 없이 1회 진단을 시작해요.'); return go('consent'); }
+  $('ticketCode').value = ''; ticketMsg('QR 코드를 찾는 중이에요…'); go('ticket');
+}
+function renderHomePass() {
+  const n = store.passCount(), a = store.active(), el = $('homePass');
+  el.hidden = !n && !a;
+  el.textContent = a ? '진행 중인 진단이 있어요. 진단 시작을 누르면 이어서 할 수 있어요.' : n ? `관리자 허가: QR 없이 진단 ${n}회 가능` : '';
+}
+function ticketMsg(m, kind = '') { const el = $('ticketMsg'); el.textContent = m; el.className = 'status' + (kind ? ' ' + kind : ''); }
+let scanTimer = null, scanBusy = false, lastBad = { t: '', at: 0 }, admitting = false;
+const qrCanvas = document.createElement('canvas');
+function startScan() {
+  stopScan(); initDecoder(); lastBad = { t: '', at: 0 };
+  scanTimer = setInterval(async () => {
+    if (scanBusy || admitting || S.screen !== 'ticket' || !video.videoWidth) return;
+    scanBusy = true;
+    try { const txt = await decodeVideo(video, qrCanvas); if (txt && S.screen === 'ticket') await onCode(txt, 'qr'); } catch {} finally { scanBusy = false; }
+  }, 250);
+}
+function stopScan() { clearInterval(scanTimer); scanTimer = null; qrCanvas.width = qrCanvas.height = 1; }
+async function onCode(txt, src) {
+  if (src === 'qr' && txt === lastBad.t && Date.now() - lastBad.at < 20000) return; // 같은 거부 코드는 20초 동안 다시 알리지 않음
+  admitting = true;
+  try {
+    const r = await admit(store, txt);
+    if (!r.ok) { if (src === 'qr') lastBad = { t: txt, at: Date.now() }; ticketMsg('⛔ ' + r.msg, 'bad'); toast(r.msg, 4000); return; }
+    stopScan(); S.ticket = r.id; ticketMsg('✅ 진단권 확인 완료', 'ok');
+    toast(r.resumed ? '진행 중인 진단권으로 이어서 진행해요.' : `진단권 ${r.id.slice(0, 4)}-${r.id.slice(4)} 확인 완료! 진단을 시작해요.`);
+    await go('consent');
+  } finally { admitting = false; }
+}
+$('btnTicketCode').onclick = () => { const v = $('ticketCode').value.trim(); if (!v) return toast('카드에 적힌 코드를 입력해 주세요.'); onCode(v, 'manual'); };
+$('ticketCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btnTicketCode').click(); });
+$('btnTicketCancel').onclick = () => go('home');
+$('btnStart').onclick = () => startFlow(false);
+$('btnDrapeOnly').onclick = () => startFlow(true);
 $('chkConsent').onchange = (e) => { $('btnConsentCam').disabled = $('btnConsentPhoto').disabled = !e.target.checked; };
 $('btnConsentCam').onclick = () => { loadFace(); go(S.drapeOnly ? 'drape' : 'calib'); };
 $('btnConsentPhoto').onclick = () => { loadFace(); S.drapeOnly = false; $('fileInput').click(); };
@@ -276,6 +323,7 @@ function renderRound() {
 }
 const dotBg = (f) => f === 'gold' ? 'linear-gradient(135deg,#8a6a1f,#f6dc8a,#c79a35)' : f === 'silver' ? 'linear-gradient(135deg,#6f747c,#eef1f5,#a7adb6)' : f;
 function pickRound(side) {
+  if (!S.rounds) return;
   const r = currentRound(); if (!r) return;
   if (side) { const chosen = side === 'L' ? r.L : r.R, other = side === 'L' ? r.R : r.L; S.votes.push({ kind: 'round', id: r.id, title: r.title, pick: chosen.name, chosen: chosen.v, other: other.v }); }
   else S.votes.push({ kind: 'round', id: r.id, title: r.title, pick: '비슷함', chosen: {}, other: {} });
@@ -320,6 +368,7 @@ $('btnBackDrape').onclick = () => go('drape');
 
 // ---------- 최종 결과 ----------
 function buildFinal() {
+  store.finishSession(); // 결과까지 오면 진단권 사용 완료 (이후 같은 QR로 다시 시작 불가)
   const feat = currentFeat(); const cls = classify(feat);
   const realVotes = S.votes.filter((v) => v.pick !== '비슷함').length;
   const baseQ = S.auto ? S.auto.quality : 0.55;
@@ -403,7 +452,8 @@ async function resetAll(confirmFirst = true) {
   for (const id of ['autoBody', 'resultCard', 'voteSummary', 'meter', 'autoConf', 'roundProg', 'roundTitle', 'roundQ', 'btnPickL', 'btnPickR', 'browseName', 'selL', 'selR']) $(id).innerHTML = '';
   $('toast').hidden = true; $('modal').hidden = true;
   setDrape('transparent', null, '', '');
-  try { sessionStorage.clear(); localStorage.clear(); } catch {}
+  // 진단 데이터는 저장하지 않지만, 혹시 남은 값이 있으면 지움 (진단권 사용 기록 pcqr.* 만 유지: 코드 ID·시각, 개인정보 없음)
+  try { sessionStorage.clear(); for (const k of Object.keys(localStorage)) if (!k.startsWith(STORAGE_PREFIX)) localStorage.removeItem(k); } catch {}
   await go('home');
 }
 $('btnReset').onclick = () => resetAll(true);
@@ -414,7 +464,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) stopC
 window.addEventListener('resize', () => setOverlay(S.screen));
 
 // 테스트용 읽기 전용 상태 노출
-window.__pc = { get state() { return S; }, get stream() { return stream; }, faceStatus };
+const admin = initAdmin({ $, go, toast, ask, store, getScreen: () => S.screen });
+window.__pc = { get state() { return S; }, get stream() { return stream; }, faceStatus, admin, store };
 
 // 서비스 워커 (HTTPS 또는 localhost)
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {

@@ -67,7 +67,7 @@ export const REJECT_MSG = {
 };
 
 // ---------- 이 기기의 기록 (localStorage, 개인정보 없음: 코드 ID·시각만) ----------
-const K = { used: 'pcqr.used', issued: 'pcqr.issued', revoked: 'pcqr.revoked', active: 'pcqr.active', pass: 'pcqr.pass', lock: 'pcqr.lock', pw: 'pcqr.pw', seen: 'pcqr.seen', clock: 'pcqr.clock', cfg: 'pcqr.cfg' };
+const K = { used: 'pcqr.used', issued: 'pcqr.issued', revoked: 'pcqr.revoked', active: 'pcqr.active', pass: 'pcqr.pass', lock: 'pcqr.lock', pw: 'pcqr.pw', seen: 'pcqr.seen', clock: 'pcqr.clock', clockLog: 'pcqr.clocklog', cfg: 'pcqr.cfg' };
 export const DEFAULT_CFG = { operator: 'H.O.W', contact: '', wake: true };
 export const OLD_DEFAULT_OPERATORS = ['롯데렌터카 김해공항']; // 예전 기본값을 그대로 둔 기기는 새 기본값으로 바꿈
 export const STORAGE_PREFIX = 'pcqr.';
@@ -91,6 +91,10 @@ export function createStore(backend = globalThis.localStorage) {
     seen: () => +get(K.seen, 0) || 0,
     touchSeen(now = Date.now()) { const s = +get(K.seen, 0) || 0; if (now > s) set(K.seen, now); if (s && now < s - CLOCK_BACK_MS) { const w = { kind: 'back', by: s - now, at: now }; set(K.clock, w); return w; } return null; },
     clockWarn: () => get(K.clock, null), setClockWarn: (w) => set(K.clock, w), clearClockWarn: () => del(K.clock),
+    // 시계가 미래로 잘못 갔다가 바로잡힌 기기: 관리자가 '지금 시각'을 새 기준으로 정함 (기록 남김, 최근 20건)
+    clockAhead(now = Date.now()) { const s = +get(K.seen, 0) || 0; return s > now + CLOCK_BACK_MS ? s - now : 0; },
+    resetSeen(now = Date.now()) { const from = +get(K.seen, 0) || 0; set(K.seen, now); del(K.clock); const log = get(K.clockLog, []); log.unshift({ at: now, from }); set(K.clockLog, log.slice(0, 20)); return { from, to: now }; },
+    clockLog: () => get(K.clockLog, []),
     // 진행 중 세션
     active(now = Date.now()) { const a = get(K.active, null); return a && !a.done && now - a.at < SESSION_MS && now >= a.at - CLOCK_BACK_MS ? a : null; },
     startSession(id, src, now = Date.now(), extra = {}) { set(K.active, { id, src, at: now, done: false, ...extra }); },
@@ -172,7 +176,7 @@ export function applyBackup(store, { kind, data }, { withPw = false } = {}) {
   return r;
 }
 // 사용 기록 QR: PCU1:<쪽>/<전체>:<사용 ID…>.<취소 ID…>:<서명>  (ID 8자, 영숫자 QR 모드)
-export const SYNC_PER_QR = 60;
+export const SYNC_PER_QR = 24; // 한 장 24개 → QR 버전 약 10 (카메라로 읽기 쉬운 밀도)
 const isId = (id) => /^[0-9A-HJKMNP-TV-Z]{8}$/.test(id);
 export async function makeSyncQrs(store, per = SYNC_PER_QR) {
   const u = Object.keys(store.used()).filter(isId).map((id) => 'U' + id), r = Object.keys(store.revoked()).filter(isId).map((id) => 'R' + id);

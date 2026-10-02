@@ -6,6 +6,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; img-src 'self' blob: data:; media-src 'self' blob: mediastream:; style-src 'self' 'unsafe-inline'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#2b2340">
+<meta name="color-scheme" content="light only">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="퍼스널컬러">
@@ -103,7 +104,7 @@
     <!-- 관리자 -->
     <div class="screen" data-for="admin">
       <div class="adminhead"><h2>관리자 모드</h2><span class="chip" id="adminPassChip" hidden></span><button class="btn sm" id="btnPassCancel" type="button" hidden>허가 취소</button></div>
-      <div class="status bad clockwarn" id="clockWarn" hidden><span id="clockWarnTxt"></span> <button class="btn sm" id="btnClockOk" type="button">확인함</button></div>
+      <div class="status bad clockwarn" id="clockWarn" hidden><span id="clockWarnTxt"></span> <button class="btn sm" id="btnClockReset" type="button" hidden>지금 시각으로 기준 재설정</button> <button class="btn sm" id="btnClockOk" type="button">확인함</button></div>
       <div class="tabs" role="tablist">
         <button class="tab on" id="tabIssue" type="button" role="tab">발급</button>
         <button class="tab" id="tabList" type="button" role="tab">목록</button>
@@ -159,6 +160,7 @@
         <h3>기기 설정</h3>
         <label class="check sm"><input type="checkbox" id="cfgWake"> 화면 꺼짐 방지 (진단 기기용)</label>
         <p class="sub" id="persistStatus"></p>
+        <p class="sub" id="clockLogTxt" hidden></p>
         <div class="setgrid">
           <button class="btn" id="btnPersist" type="button">저장소 보호 요청</button>
           <button class="btn" id="btnInstall" type="button" hidden>홈 화면에 앱 설치</button>
@@ -195,7 +197,7 @@
       <ul class="consent-list">
         <li><b>이용 목적</b> 어울리는 색(퍼스널컬러)을 추정하고 드레이핑으로 비교하기 위해 카메라로 얼굴 색을 측정해요.</li>
         <li><b>처리 방식 · 저장 안 함</b> 얼굴 영상은 이 기기 안에서만 실시간으로 분석하고, 저장하거나 서버로 보내지 않아요. 분석이 끝나면 바로 지우고 카메라도 꺼요.</li>
-        <li><b>결과</b> 결과 이미지와 휴대폰 전송용 QR에는 색과 글자만 들어가고 얼굴 사진·이름 같은 개인정보는 들어가지 않아요.</li>
+        <li><b>결과</b> 결과 이미지에는 색과 글자만 들어가요. 결과 QR에는 타입·얼굴형 글자만 담겨요. 얼굴 사진·이름 같은 개인정보는 들어가지 않아요.</li>
         <li><b>동의 거부</b> 동의하지 않을 수 있어요. 동의하지 않으면 카메라 진단만 이용할 수 없고, 그 밖의 불이익은 없어요.</li>
         <li><b>추정 결과</b> 조명과 카메라에 따라 달라질 수 있는 참고용 결과예요. 의학적·전문 진단이 아니에요.</li>
         <li><b>운영 · 문의</b> <span id="cfgOperatorTxt">H.O.W</span> · <span id="cfgContactTxt">매장 직원에게 문의해 주세요</span></li>
@@ -341,8 +343,8 @@
     <div class="modal-btns"><button class="btn primary" id="btnRqClose" type="button">닫기</button></div></div>
 </div>
 <div class="modal" id="syncView" hidden>
-  <div class="modal-box qrbox"><p><b>사용 기록 QR</b> <span id="syncIdx"></span></p>
-    <canvas id="syncCanvas" width="420" height="420" aria-label="사용 기록 QR"></canvas>
+  <div class="modal-box qrbox wide"><p><b>사용 기록 QR</b> <span id="syncIdx"></span></p>
+    <canvas id="syncCanvas" width="600" height="600" aria-label="사용 기록 QR"></canvas>
     <p class="sub">다른 기기의 관리자 모드 → 설정 → [QR로 가져오기]로 비춰 주세요.</p>
     <div class="modal-btns"><button class="btn" id="btnSyncPrev" type="button">◀</button><button class="btn" id="btnSyncNext" type="button">▶</button><button class="btn primary" id="btnSyncClose" type="button">닫기</button></div></div>
 </div>

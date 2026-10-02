@@ -3,11 +3,16 @@ import { makeToken, tryLogin, lockState, makePwRecord, statusOf, fmtDay, ADMIN_I
 import { renderCard, renderSheet, makePdf, SHEET, drawQr } from './qrcard.js';
 
 export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = () => {}, onCfg = () => {} }) {
-  const A = { authed: false, last: 0, idleMs: ADMIN_IDLE_MS, batch: [], idx: 0, tab: 'issue', pvList: [], busy: false, sync: [], syncIdx: 0, installEvt: null };
+  const PRINT_IDLE_MS = 15 * 60 * 1000;
+  const A = { printing: false, authed: false, last: 0, idleMs: ADMIN_IDLE_MS, batch: [], idx: 0, tab: 'issue', pvList: [], busy: false, sync: [], syncIdx: 0, installEvt: null };
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); A.installEvt = e; });
   const touch = () => { A.last = Date.now(); };
   ['pointerdown', 'keydown', 'input', 'wheel'].forEach((ev) => document.addEventListener(ev, touch, { passive: true, capture: true }));
-  setInterval(() => { if (A.authed && Date.now() - A.last > A.idleMs) logout('오래 사용하지 않아 관리자 모드에서 자동으로 나왔어요.'); }, 1000);
+  // 인쇄 창이 열려 있는 동안은 멈추고, 인쇄 미리보기가 열려 있으면 15분까지 늘림 (인쇄 도중 로그아웃 방지)
+  window.addEventListener('beforeprint', () => { A.printing = true; touch(); });
+  window.addEventListener('afterprint', () => { A.printing = false; touch(); });
+  const idleLimit = () => ($('printView').hidden ? A.idleMs : Math.max(A.idleMs, PRINT_IDLE_MS));
+  setInterval(() => { if (A.printing) { touch(); return; } if (A.authed && Date.now() - A.last > idleLimit()) logout('오래 사용하지 않아 관리자 모드에서 자동으로 나왔어요.'); }, 1000);
 
   function open() { if (A.authed) { touch(); return go('admin').then(render); } $('adminPw').value = ''; showLoginMsg(); go('adminLogin').then(() => $('adminPw').focus()); }
   function showLoginMsg(msg, bad = true) {
@@ -114,8 +119,12 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
     if (p) $('adminPassChip').textContent = `QR 없이 1회 허가 대기 중 (${new Date(p.until).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}까지)`;
   }
   function renderClock() {
-    const w = store.clockWarn(); $('clockWarn').hidden = !w; if (!w) return;
-    $('clockWarnTxt').textContent = w.kind === 'back' ? `⚠️ 기기 시계가 이전 기록보다 약 ${Math.max(1, Math.round(w.by / 60000))}분 뒤로 바뀌었어요. 날짜·시간 설정을 확인해 주세요.` : '⚠️ 발급일이 이 기기 날짜보다 뒤인 진단권이 있었어요. 기기 날짜·시간이 맞는지 확인해 주세요.';
+    // ahead: 이 기기가 본 가장 늦은 시각이 지금보다 앞섬. 하루 넘게 앞서면 만료 판정에 영향 → [확인함]을 눌러도 계속 표시
+    const w = store.clockWarn(), ahead = store.clockAhead(), big = ahead > 86400000;
+    $('clockWarn').hidden = !w && !big; $('btnClockReset').hidden = !ahead; if (!w && !big) return;
+    const fix = ahead ? ` 예전에 시계가 미래로 잘못 맞춰졌다가 바로잡힌 거라면, 지금 날짜·시간이 맞는지 확인한 뒤 [지금 시각으로 기준 재설정]을 눌러 주세요.${big ? ' 그 전까지는 정상 진단권도 만료로 보일 수 있어요.' : ''}` : '';
+    $('clockWarnTxt').textContent = (w?.kind === 'behind' ? '⚠️ 발급일이 이 기기 날짜보다 뒤인 진단권이 있었어요. 기기 날짜·시간이 맞는지 확인해 주세요.'
+      : `⚠️ 기기 시계가 이전 기록(${new Date(Date.now() + ahead).toLocaleString('ko-KR', { hour12: false })})보다 뒤로 바뀌었어요. 날짜·시간 설정을 확인해 주세요.`) + fix;
   }
   // ---------- 설정: 운영 정보 · 백업 · 기기 간 기록 · 기기 설정 ----------
   async function renderSettings() {
@@ -124,6 +133,7 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
     let ps = '저장소 보호: 이 브라우저는 지원하지 않아요.';
     try { if (navigator.storage?.persisted) ps = (await navigator.storage.persisted()) ? '저장소 보호: 켜짐 ✅ (브라우저가 기록을 임의로 지우지 않아요)' : '저장소 보호: 꺼짐 — [저장소 보호 요청]을 누르거나 홈 화면에 추가해 주세요.'; } catch {}
     $('persistStatus').textContent = ps;
+    const lg = store.clockLog(); $('clockLogTxt').hidden = !lg.length; if (lg.length) $('clockLogTxt').textContent = `시계 기준 재설정 기록 ${lg.length}건 · 마지막 ${new Date(lg[0].at).toLocaleString('ko-KR', { hour12: false })} (이전 기준 ${lg[0].from ? new Date(lg[0].from).toLocaleString('ko-KR', { hour12: false }) : '없음'})`;
   }
   function saveCfg() { store.setCfg({ operator: $('cfgOp').value.trim().slice(0, 40) || '매장', contact: $('cfgCt').value.trim().slice(0, 40) }); toast('운영 정보를 저장했어요. 동의 화면에 표시돼요.'); }
   const stamp = () => { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}_${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`; };
@@ -144,7 +154,7 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
   async function showSync() {
     A.sync = await makeSyncQrs(store); A.syncIdx = 0; drawSync(); $('syncView').hidden = false;
   }
-  function drawSync() { const cv = $('syncCanvas'), ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height); drawQr(ctx, A.sync[A.syncIdx], 0, 0, cv.width, 3); cv.dataset.text = A.sync[A.syncIdx]; $('syncIdx').textContent = `${A.syncIdx + 1} / ${A.sync.length}쪽 · 사용 ${Object.keys(store.used()).filter((k) => !k.startsWith('PASS')).length} · 취소 ${Object.keys(store.revoked()).length}`; }
+  function drawSync() { const cv = $('syncCanvas'), ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height); drawQr(ctx, A.sync[A.syncIdx], 0, 0, cv.width, 4); cv.dataset.text = A.sync[A.syncIdx]; $('syncIdx').textContent = `${A.syncIdx + 1} / ${A.sync.length}쪽 · 사용 ${Object.keys(store.used()).filter((k) => !k.startsWith('PASS')).length} · 취소 ${Object.keys(store.revoked()).length}`; }
   function closeSync() { $('syncView').hidden = true; A.sync = []; }
   async function revoke(id) { if (!(await ask(`진단권 ${id}의 사용을 취소할까요? 취소하면 이 기기에서 더 이상 쓸 수 없어요.`))) return; store.revoke(id); toast('진단권을 취소했어요.'); renderList(); }
   // ---------- 설정 ----------
@@ -167,6 +177,11 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
   $('tabIssue').onclick = () => setTab('issue'); $('tabList').onclick = () => setTab('list'); $('tabStats').onclick = () => setTab('stats'); $('tabSettings').onclick = () => setTab('settings');
   $('listBatch').onchange = $('listStatus').onchange = renderList;
   $('btnPassCancel').onclick = cancelPass; $('btnClockOk').onclick = () => { store.clearClockWarn(); renderClock(); };
+  $('btnClockReset').onclick = async () => {
+    const now = new Date().toLocaleString('ko-KR', { hour12: false });
+    if (!(await ask(`기기 시계가 지금 맞나요? (${now}) 맞다면 이 시각을 새 기준으로 정해요. 기록이 남아요.`))) return;
+    store.resetSeen(); toast('시계 기준을 지금 시각으로 다시 정했어요.', 4000); render();
+  };
   $('btnCfgSave').onclick = saveCfg; $('cfgWake').onchange = (e) => { store.setCfg({ wake: e.target.checked }); onCfg(); toast(e.target.checked ? '화면 꺼짐 방지를 켰어요.' : '화면 꺼짐 방지를 껐어요.'); };
   $('btnBackup').onclick = () => backup('backup'); $('btnUsedExport').onclick = () => backup('used');
   $('btnCsv').onclick = () => { download(new Blob([toCsv(store)], { type: 'text/csv;charset=utf-8' }), `진단권_목록_${stamp()}.csv`); toast('CSV 파일을 저장했어요 (엑셀에서 열 수 있어요).'); };

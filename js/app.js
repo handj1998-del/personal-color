@@ -5,8 +5,10 @@ import { loadFace, detectFace, faceStatus } from './face.js';
 import { renderCardCanvas } from './card.js';
 import { createStore, admit, STORAGE_PREFIX, readSyncQr } from './ticket.js';
 import { drawQr } from './qrcard.js';
-import { encodeResult, decodeResult } from './share.js';
-import { initDecoder, decodeVideo } from './qr.js';
+import { encodeResult, decodeResult, RESULT_RE } from './share.js';
+// 고객 휴대폰으로 연 결과 보기(#r=…): 서비스 워커(분석 엔진·모델 내려받기)·화면 꺼짐 방지·시계 기록을 건너뜀
+const SHARED_BOOT = RESULT_RE.test(location.hash);
+import { initDecoder, decodeVideo, MAX_SIDE, MAX_SIDE_SYNC } from './qr.js';
 import { initAdmin } from './admin.js';
 import { faceMetrics, classifyFaceShape, FACE_SHAPES, FACE_ORDER, GLASS_SHAPES, LIPS, FRAMES, glassesSvg, browSvg } from './style.js';
 
@@ -214,7 +216,7 @@ function startScan() {
     let wait = 250;
     if (!admitting && SCAN_SCREENS.has(S.screen) && video.videoWidth && !document.hidden) {
       const t0 = performance.now();
-      try { const txt = await decodeVideo(video, qrCanvas); if (gen !== scanGen) return; if (txt) await (S.screen === 'adminScan' ? onSyncCode(txt) : S.screen === 'ticket' ? onCode(txt, 'qr') : null); } catch {}
+      try { const txt = await decodeVideo(video, qrCanvas, S.screen === 'adminScan' ? MAX_SIDE_SYNC : MAX_SIDE); if (gen !== scanGen) return; if (txt) await (S.screen === 'adminScan' ? onSyncCode(txt) : S.screen === 'ticket' ? onCode(txt, 'qr') : null); } catch {}
       wait = Math.max(250, 2 * (performance.now() - t0));
     }
     if (gen === scanGen) scanTimer = setTimeout(loop, wait);
@@ -510,7 +512,7 @@ function openShared() {
   const f = decodeResult(m[1]);
   S = fresh(); S.screen = 'shared';
   if (!f) { go('home'); toast('결과 주소가 올바르지 않아요.', 4500); return true; }
-  S.final = f; S.faceShape = f.sharedFace; go('shared').then(renderResult); return true;
+  S.final = f; S.faceShape = f.sharedFace; wake(); go('shared').then(renderResult); return true;
 }
 window.addEventListener('hashchange', () => { if (location.hash.startsWith('#r=')) openShared(); });
 
@@ -561,13 +563,13 @@ const admin = initAdmin({ $, go, toast, ask, store, getScreen: () => S.screen, o
 window.__pc = { get state() { return S; }, get stream() { return stream; }, faceStatus, admin, store, setIdle: (ms, cd) => { IDLE.ms = ms; IDLE.cd = cd ?? IDLE.cd; IDLE.last = Date.now(); }, get wakeLock() { return wakeLock; }, encodeResult, decodeResult, resultUrl: () => (S.final ? resultUrl() : null) };
 
 // ---------- 기기 시계 확인 (시계를 뒤로 돌리면 관리자에게 경고) ----------
-store.touchSeen(); setInterval(() => store.touchSeen(), 60000);
+if (!SHARED_BOOT) { store.touchSeen(); setInterval(() => store.touchSeen(), 60000); }
 
 // ---------- 화면 꺼짐 방지 · 전체 화면 ----------
 let wakeLock = null;
 async function wake() {
   try {
-    if (store.cfg().wake === false) { await wakeLock?.release(); wakeLock = null; return; }
+    if (SHARED_BOOT || S.screen === 'shared' || store.cfg().wake === false) { await wakeLock?.release(); wakeLock = null; return; }
     if (!('wakeLock' in navigator) || document.hidden || (wakeLock && !wakeLock.released)) return;
     wakeLock = await navigator.wakeLock.request('screen');
   } catch { wakeLock = null; }
@@ -580,7 +582,7 @@ $('btnFull').onclick = async () => { try { if (document.fullscreenElement) await
 document.addEventListener('fullscreenchange', () => { $('btnFull').textContent = document.fullscreenElement ? '🗗' : '⛶'; $('btnFull').setAttribute('aria-label', document.fullscreenElement ? '전체 화면 끝내기' : '전체 화면'); });
 
 // 서비스 워커 (HTTPS 또는 localhost)
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+if (!SHARED_BOOT && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
   // 새 버전이 설치되면 진행 중인 진단을 방해하지 않게 '새로고침' 안내만 띄움
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) $('updBar').hidden = false; });

@@ -78,8 +78,8 @@
         <li><b>결과 이미지</b> 결과 카드에는 색과 글자만 들어가고 얼굴 사진은 들어가지 않아요.</li>
         <li><b>추정 결과</b> 조명과 카메라에 따라 달라질 수 있는 참고용 결과예요. 의학적·전문 진단이 아니에요.</li>
       </ul>
-      <label class="check"><input type="checkbox" id="chkConsent"> 위 안내를 확인했고 촬영에 동의합니다.</label>
       <div class="bigbtns">
+        <label class="check"><input type="checkbox" id="chkConsent"> 위 안내를 확인했고 촬영에 동의합니다.</label>
         <button class="btn primary xl" id="btnConsentCam" type="button" disabled>동의하고 카메라 켜기</button>
         <button class="btn xl" id="btnConsentPhoto" type="button" disabled>사진 파일로 진단</button>
         <button class="btn ghost" id="btnConsentNo" type="button">동의하지 않음</button>
@@ -142,14 +142,12 @@
         <button class="tab" id="tabBrowse" type="button" role="tab">팔레트 둘러보기</button>
       </div>
       <div id="drapeRoundsBox">
-        <div class="progress" id="roundProg"></div>
-        <h2 id="roundTitle"></h2>
+        <div class="roundhead"><h2 id="roundTitle"></h2><div class="progress" id="roundProg"></div></div>
         <p class="lead" id="roundQ"></p>
         <div class="choice">
           <button class="btn xl choiceA" id="btnPickL" type="button"></button>
           <button class="btn xl choiceB" id="btnPickR" type="button"></button>
         </div>
-        <button class="btn" id="btnPickSame" type="button">비슷해요 / 잘 모르겠어요</button>
         <div id="roundDone" hidden>
           <p class="lead">비교가 끝났어요. 선택한 결과를 자동 분석과 합쳐서 최종 결과를 보여 드려요.</p>
         </div>
@@ -172,6 +170,7 @@
       </div>
       <div class="votes" id="voteSummary"></div>
       <div class="bigbtns">
+        <button class="btn" id="btnPickSame" type="button">비슷해요 / 모르겠어요</button>
         <button class="btn primary xl" id="btnDrapeDone" type="button">최종 결과 보기</button>
       </div>
     </div>

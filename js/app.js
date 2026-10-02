@@ -3,13 +3,14 @@ import { analyzeImage, ovalGeom, paperGeom, paperRgb, estimateCast } from './ana
 import { SEASONS, SEASON_ORDER, drapeRounds } from './seasons.js';
 import { loadFace, detectFace, faceStatus } from './face.js';
 import { renderCardCanvas } from './card.js';
+import { faceMetrics, classifyFaceShape, FACE_SHAPES, FACE_ORDER, GLASS_SHAPES, LIPS, FRAMES, glassesSvg, browSvg } from './style.js';
 
 const $ = (id) => document.getElementById(id);
 const SVGNS = 'http://www.w3.org/2000/svg';
 const CAMERA_SCREENS = new Set(['calib', 'capture', 'drape']);
 const STEP_LABELS = [['consent', '동의'], ['calib', '보정'], ['capture', '촬영'], ['auto', '분석'], ['drape', '드레이핑'], ['result', '결과']];
 
-const fresh = () => ({ screen: 'home', wb: null, auto: null, votes: [], roundIdx: 0, rounds: null, browse: { L: 'spring_light', R: 'summer_light', i: 0 }, drapeTab: 'rounds', final: null, drapeOnly: false });
+const fresh = () => ({ screen: 'home', wb: null, auto: null, votes: [], roundIdx: 0, rounds: null, browse: { L: 'spring_light', R: 'summer_light', i: 0 }, drapeTab: 'rounds', final: null, drapeOnly: false, faceShape: null, resTab: 'color' });
 let S = fresh();
 let stream = null, facing = 'user', meterTimer = null, cameraBusy = false, seq = 0;
 const work = $('work');
@@ -209,11 +210,12 @@ async function runAnalysis(img, source) {
   try { lm = await detectFace(work); } catch { lm = null; }
   $('analyzingMsg').textContent = '분석 중이에요…';
   let res = analyzeImage(img, { landmarks: lm, gains: S.wb?.gains || null, calibrated: !!S.wb, source });
+  if (res.ok && lm) { try { res.face = classifyFaceShape(faceMetrics(lm, img.width, img.height)); } catch { res.face = null; } }
   if (!lm && source === 'photo') res.notes?.unshift('사진에서 얼굴을 찾지 못해 사진 가운데 영역으로 측정했어요. 얼굴이 가운데 오는 정면 사진을 써 주세요.');
   // 이미지 데이터 폐기
   img.data.fill(0); wipeWork();
   if (!res.ok) { toast(source === 'photo' ? '얼굴 피부를 찾지 못했어요. 얼굴이 크게 나온 정면 사진을 써 주세요.' : '피부색을 찾지 못했어요. 얼굴을 타원 안에 맞추고 다시 촬영해 주세요.', 4500); return go(source === 'photo' ? 'consent' : 'capture'); }
-  S.auto = res; S.votes = []; S.roundIdx = 0; S.rounds = null;
+  S.auto = res; S.votes = []; S.roundIdx = 0; S.rounds = null; S.faceShape = null;
   renderAuto(); go('auto');
 }
 
@@ -231,7 +233,7 @@ function renderAuto() {
     </div>
     <div class="measure"><div class="skinchip" style="background:${skinHex}" title="측정된 피부색"></div>
       <div><b>측정한 피부색</b> (${und})<br><small>L* ${r.skin.L.toFixed(1)} · a* ${r.skin.a.toFixed(1)} · b* ${r.skin.b.toFixed(1)} · 색상각 ${r.feat.hue.toFixed(0)}° · 대비 ${r.feat.contrast.toFixed(0)}</small><br>
-      <small>머리카락 ${r.hair ? '측정됨' : '측정 못함'} · 눈동자 ${r.eye ? '측정됨' : '측정 못함'} · ${r.mode === 'landmark' ? '얼굴 자동 인식' : '타원 가이드'} · ${r.calibrated ? '흰 종이 보정' : '보정 안 함'}</small></div></div>
+      <small>머리카락 ${r.hair ? '측정됨' : '측정 못함'} · 눈동자 ${r.eye ? '측정됨' : '측정 못함'} · ${r.mode === 'landmark' ? '얼굴 자동 인식' : '타원 가이드'} · ${r.calibrated ? '흰 종이 보정' : '보정 안 함'}${r.face ? ` · 얼굴형 추정 ${FACE_SHAPES[r.face.id].name}` : ''}</small></div></div>
     ${bar('언더톤', '쿨', '웜', r.feat.w)}${bar('명도', '깊음', '밝음', r.feat.l)}${bar('채도·대비', '부드러움', '선명함', r.feat.c)}
     ${r.conf.hint ? `<p class="warn">ℹ️ ${r.conf.hint}</p>` : ''}
     ${[...r.light.issues.map((i) => i.msg), ...r.notes].map((n) => `<p class="warn">⚠️ ${n}</p>`).join('')}
@@ -252,7 +254,7 @@ function renderDrape() {
   $('tabRounds').classList.toggle('on', S.drapeTab === 'rounds'); $('tabBrowse').classList.toggle('on', S.drapeTab === 'browse');
   $('drapeRoundsBox').hidden = S.drapeTab !== 'rounds'; $('drapeBrowseBox').hidden = S.drapeTab !== 'browse';
   $('selL').innerHTML = seasonOptions(S.browse.L); $('selR').innerHTML = seasonOptions(S.browse.R);
-  if (S.drapeTab === 'rounds') renderRound(); else renderBrowse();
+  if (S.drapeTab === 'rounds') renderRound(); else { $('btnPickSame').hidden = true; renderBrowse(); }
   renderVotes();
 }
 function currentRound() {
@@ -325,26 +327,61 @@ function buildFinal() {
   const conf = confidence(cls, q);
   const method = S.auto && realVotes ? '자동 분석 + 드레이핑' : S.auto ? '자동 분석' : '드레이핑';
   const d = new Date(); const date = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-  S.final = { id: cls.top[0].id, season: SEASONS[cls.top[0].id], second: SEASONS[cls.top[1].id], secondP: cls.top[1].p, p: cls.top[0].p, conf, method, date, changed: S.auto ? S.auto.cls.top[0].id !== cls.top[0].id : false };
+  S.final = { face: S.auto?.face || null, id: cls.top[0].id, season: SEASONS[cls.top[0].id], second: SEASONS[cls.top[1].id], secondP: cls.top[1].p, p: cls.top[0].p, conf, method, date, changed: S.auto ? S.auto.cls.top[0].id !== cls.top[0].id : false };
   renderResult();
 }
 const sw = (c, cls = '') => `<div class="swatch ${cls}"><i style="background:${c.hex}"></i><span>${c.name}</span></div>`;
+const RTABS = [['color', '컬러'], ['lip', '립'], ['glasses', '안경'], ['brow', '눈썹']];
+function faceId() { return S.faceShape || S.final?.face?.id || null; }
+function needFace() { return `<p class="warn pick">얼굴형을 위에서 선택하면 맞춤 추천이 나와요.</p>`; }
+function resultPane(tab) {
+  const r = S.final, s = r.season, fid = faceId(), F = fid ? FACE_SHAPES[fid] : null;
+  if (tab === 'lip') {
+    const L = LIPS[r.id];
+    return `<h3>💄 추천 립 컬러</h3><div class="palette lips">${L.best.map((c) => sw(c, 'lip')).join('')}</div>
+      <p class="tip">${L.tip}</p><h3>피하면 좋은 립 컬러</h3><div class="palette lips avoid">${L.avoid.map((c) => sw(c, 'lip sm')).join('')}</div>`;
+  }
+  if (tab === 'glasses') {
+    const G = FRAMES[r.id];
+    return `<h3>👓 안경테 컬러 <small>${s.name}</small></h3><div class="palette frames">${G.best.map((c) => sw(c, 'frame')).join('')}</div>
+      <p class="tip">${G.tip} <span class="sub">피하면 좋은 테: ${G.avoid}</span></p>
+      <h3>안경테 모양 <small>${F ? F.name : ''}</small></h3>
+      ${F ? `<div class="glist">${F.glasses.map((g) => `<div class="gitem" data-g="${g}">${glassesSvg(g)}<span>${GLASS_SHAPES[g]}</span></div>`).join('')}</div>
+      <p class="tip">${F.glassesTip} <span class="sub">피하면 좋은 모양: ${F.glassesAvoid}</span></p>` : needFace()}`;
+  }
+  if (tab === 'brow') {
+    const browColor = s.tone === '웜' ? '#6b4a32' : '#4d4646';
+    const colorTip = s.tone === '웜' ? '눈썹 색은 브라운·카키 브라운처럼 따뜻한 갈색이 자연스러워요.' : '눈썹 색은 그레이 브라운·애쉬 브라운처럼 차가운 갈색이 자연스러워요.';
+    return `<h3>✏️ 눈썹 모양 추천 <small>${F ? F.name : ''}</small></h3>
+      ${F ? `<div class="browrec">${browSvg(F.brow, browColor)}<div><b id="browName">${F.browName}</b><p>${F.browTip}</p></div></div>` : needFace()}
+      <p class="tip">${colorTip}</p>`;
+  }
+  return `<p class="desc">${s.desc}</p>
+    <h3>베스트 컬러</h3><div class="palette">${s.best.map((c) => sw(c)).join('')}</div>
+    <h3>피하면 좋은 컬러</h3><div class="palette avoid">${s.avoid.map((c) => sw(c, 'sm')).join('')}</div>
+    <div class="tipsgrid"><div><h4>💄 메이크업</h4><p>${s.makeup}</p></div><div><h4>💇 헤어</h4><p>${s.hair}</p></div><div><h4>💍 액세서리</h4><p>${s.acc}</p></div></div>`;
+}
 function renderResult() {
-  const r = S.final, s = r.season;
+  const r = S.final, s = r.season, fid = faceId(), auto = r.face;
+  const opts = (fid ? '' : '<option value="" selected>선택해 주세요</option>') + FACE_ORDER.map((id) => `<option value="${id}" ${id === fid ? 'selected' : ''}>${FACE_SHAPES[id].name}</option>`).join('');
+  const fnote = S.faceShape && auto && S.faceShape !== auto.id ? `직접 선택 (자동 추정: ${FACE_SHAPES[auto.id].name})`
+    : S.faceShape && !auto ? '직접 선택'
+    : auto ? `자동 추정 · ${auto.label} — ${auto.note}` : '얼굴 자동 인식이 없어요. 고객 얼굴을 보고 직접 골라 주세요.';
   $('resultCard').innerHTML = `
     <div class="card-top" style="background:linear-gradient(90deg,${s.best.slice(0, 6).map((c) => c.hex).join(',')})"></div>
     <div class="card-head"><small>나의 퍼스널컬러</small><h1 id="resName">${s.name}</h1><p class="kw">${s.short} · ${s.keywords.join(' · ')}</p>
       <p class="meta"><span class="chip ${r.conf.level}">신뢰도 ${r.conf.label}</span> <span class="chip">${r.method}</span> <span class="chip ghost">2순위 ${r.second.name}</span></p></div>
-    <p class="desc">${s.desc}</p>
-    <h3>베스트 컬러</h3><div class="palette">${s.best.map((c) => sw(c)).join('')}</div>
-    <h3>피하면 좋은 컬러</h3><div class="palette avoid">${s.avoid.map((c) => sw(c, 'sm')).join('')}</div>
-    <div class="tipsgrid"><div><h4>💄 메이크업</h4><p>${s.makeup}</p></div><div><h4>💇 헤어</h4><p>${s.hair}</p></div><div><h4>💍 액세서리</h4><p>${s.acc}</p></div></div>
+    <div class="facerow"><label for="selFace">얼굴형</label><select id="selFace">${opts}</select><span class="fnote" id="faceNote">${fnote}</span></div>
+    <div class="rtabs" role="tablist">${RTABS.map(([k, l]) => `<button type="button" role="tab" class="rtab ${S.resTab === k ? 'on' : ''}" data-rtab="${k}" aria-selected="${S.resTab === k}">${l}</button>`).join('')}</div>
+    <div class="rpane" id="rpane" data-tab="${S.resTab}">${resultPane(S.resTab)}</div>
     ${r.changed ? `<p class="note">드레이핑 선택을 반영해 자동 분석(${SEASONS[S.auto.cls.top[0].id].name})과 다른 결과가 나왔어요.</p>` : ''}
-    <p class="note">카메라와 조명에 따라 달라질 수 있는 추정 결과예요. 실제 옷이나 화장품을 대 보며 함께 확인해 주세요.</p>`;
+    <p class="note">카메라와 조명에 따라 달라질 수 있는 추정 결과이고, 추천은 일반적인 스타일링 가이드에 따른 제안이에요. 실제 옷·안경·화장품을 대 보며 함께 확인해 주세요.</p>`;
 }
+$('resultCard').addEventListener('click', (e) => { const t = e.target.closest('[data-rtab]'); if (!t || !S.final) return; S.resTab = t.dataset.rtab; renderResult(); });
+$('resultCard').addEventListener('change', (e) => { if (e.target.id !== 'selFace' || !S.final) return; S.faceShape = e.target.value || null; renderResult(); });
 $('btnSavePng').onclick = async () => {
   if (!S.final) return;
-  const cv = document.createElement('canvas'); renderCardCanvas(cv, S.final);
+  const cv = document.createElement('canvas'); renderCardCanvas(cv, { ...S.final, faceId: faceId() });
   const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
   cv.width = cv.height = 1;
   const name = `퍼스널컬러_${S.final.season.short}_${S.final.date.replaceAll('.', '')}.png`;

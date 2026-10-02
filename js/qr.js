@@ -1,4 +1,5 @@
 // QR 읽기: BarcodeDetector(있으면) → 없거나 실패하면 내장 jsQR 사용. 영상은 저장하지 않음
+export const MAX_SIDE = 480;
 let detector = null, jsqr = null, ready = null;
 export function initDecoder() {
   if (ready) return ready;
@@ -15,11 +16,11 @@ export async function decodeVideo(video, canvas) {
   if (!video.videoWidth) return null;
   if (detector) { try { const r = await detector.detect(video); if (r?.[0]?.rawValue) return r[0].rawValue; } catch {} }
   if (!jsqr) return null;
-  const k = Math.min(1, 800 / Math.max(video.videoWidth, video.videoHeight));
+  const k = Math.min(1, MAX_SIDE / Math.max(video.videoWidth, video.videoHeight)); // 저사양 기기용 축소 (명함 QR은 480px로도 충분)
   const w = (canvas.width = Math.round(video.videoWidth * k)), h = (canvas.height = Math.round(video.videoHeight * k));
   const ctx = canvas.getContext('2d', { willReadFrequently: true }); ctx.drawImage(video, 0, 0, w, h);
   const img = ctx.getImageData(0, 0, w, h); ctx.clearRect(0, 0, w, h);
-  const res = jsqr(img.data, w, h, { inversionAttempts: 'attemptBoth' });
+  const res = jsqr(img.data, w, h, { inversionAttempts: 'dontInvert' });
   img.data.fill(0);
   return res?.data || null;
 }

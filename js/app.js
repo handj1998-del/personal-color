@@ -3,19 +3,26 @@ import { analyzeImage, ovalGeom, paperGeom, paperRgb, estimateCast } from './ana
 import { SEASONS, SEASON_ORDER, drapeRounds } from './seasons.js';
 import { loadFace, detectFace, faceStatus } from './face.js';
 import { renderCardCanvas } from './card.js';
-import { createStore, admit, STORAGE_PREFIX } from './ticket.js';
+import { createStore, admit, STORAGE_PREFIX, readSyncQr } from './ticket.js';
+import { drawQr } from './qrcard.js';
+import { encodeResult, decodeResult } from './share.js';
 import { initDecoder, decodeVideo } from './qr.js';
 import { initAdmin } from './admin.js';
 import { faceMetrics, classifyFaceShape, FACE_SHAPES, FACE_ORDER, GLASS_SHAPES, LIPS, FRAMES, glassesSvg, browSvg } from './style.js';
 
 const $ = (id) => document.getElementById(id);
 const SVGNS = 'http://www.w3.org/2000/svg';
-const CAMERA_SCREENS = new Set(['ticket', 'calib', 'capture', 'drape']);
-const STEP_LABELS = [['ticket', '진단권'], ['consent', '동의'], ['calib', '보정'], ['capture', '촬영'], ['auto', '분석'], ['drape', '드레이핑'], ['result', '결과']];
+const CAMERA_SCREENS = new Set(['ticket', 'calib', 'capture', 'drape', 'adminScan']);
+const SCAN_SCREENS = new Set(['ticket', 'adminScan']);
+const NO_IDLE = new Set(['home', 'shared']); // 고객 무동작 자동 초기화 제외 화면 (관리자는 별도 자동 로그아웃)
+const STEP_LABELS = [['consent', '동의'], ['ticket', '진단권'], ['calib', '보정'], ['capture', '촬영'], ['auto', '분석'], ['drape', '드레이핑'], ['result', '결과']];
 
-const fresh = () => ({ screen: 'home', wb: null, auto: null, votes: [], roundIdx: 0, rounds: null, browse: { L: 'spring_light', R: 'summer_light', i: 0 }, drapeTab: 'rounds', final: null, drapeOnly: false, faceShape: null, resTab: 'color' });
+const fresh = () => ({ screen: 'home', after: null, resume: false, ticket: null, wb: null, auto: null, votes: [], roundIdx: 0, rounds: null, browse: { L: 'spring_light', R: 'summer_light', i: 0 }, drapeTab: 'rounds', final: null, drapeOnly: false, faceShape: null, resTab: 'color' });
 let S = fresh();
-let stream = null, facing = 'user', meterTimer = null, cameraBusy = false, seq = 0;
+let stream = null, facing = 'user', streamFacing = null, meterTimer = null, cameraBusy = false, seq = 0;
+// QR 확인 화면은 뒤 카메라를 먼저 사용 (⇄로 바꾸면 이 기기에서 기억)
+let qrFacing = (() => { try { return localStorage.getItem('pcqr.qrFacing') || 'environment'; } catch { return 'environment'; } })();
+const wantFacing = (screen = S.screen) => (SCAN_SCREENS.has(screen) ? qrFacing : facing);
 const work = $('work');
 
 // ---------- 공통 UI ----------
@@ -29,7 +36,7 @@ function ask(msg) {
 }
 function renderSteps() {
   const idx = STEP_LABELS.findIndex(([k]) => k === S.screen || (S.screen === 'analyzing' && k === 'auto'));
-  $('steps').innerHTML = S.screen === 'home' || S.screen.startsWith('admin') ? '' : STEP_LABELS.map(([k, l], i) => `<span class="${i < idx ? 'done' : i === idx ? 'cur' : ''}">${l}</span>`).join('');
+  $('steps').innerHTML = S.screen === 'home' || S.screen === 'shared' || S.screen.startsWith('admin') ? '' : STEP_LABELS.map(([k, l], i) => `<span class="${i < idx ? 'done' : i === idx ? 'cur' : ''}">${l}</span>`).join('');
 }
 async function go(screen) {
   const my = ++seq;
@@ -38,10 +45,12 @@ async function go(screen) {
   renderSteps();
   const needCam = CAMERA_SCREENS.has(screen);
   document.body.classList.toggle('has-stage', needCam);
-  if (needCam) { await startCamera(); if (my !== seq) return; } else stopCamera();
+  if (needCam) { if (stream && streamFacing !== wantFacing(screen)) stopCamera(); await startCamera(); if (my !== seq) return; } else stopCamera();
   setOverlay(screen);
-  if (screen === 'ticket') startScan(); else stopScan();
-  if (screen === 'home') renderHomePass();
+  if (SCAN_SCREENS.has(screen) && stream) startScan(); else stopScan();
+  if (screen === 'home') renderHome();
+  if (screen === 'consent') renderConsentInfo();
+  touchIdle();
   if (screen === 'calib') renderCalibStatus();
   if (screen === 'capture') $('captureCalib').textContent = S.wb ? '✅ 흰 종이 보정 적용 중' : '⚠️ 보정 없이 측정해요 (조명 색의 영향을 받을 수 있어요)';
   if (screen === 'drape') renderDrape();
@@ -53,34 +62,46 @@ const video = $('video');
 async function startCamera() {
   if (stream) return true;
   if (!navigator.mediaDevices?.getUserMedia) {
-    stageMsg(window.isSecureContext ? '이 브라우저는 카메라를 지원하지 않아요. 사진 파일로 진단해 주세요.' : '카메라는 HTTPS 주소나 localhost에서만 켜져요. 사진 파일로 진단하거나 HTTPS로 접속해 주세요.');
+    camFail(window.isSecureContext ? '이 브라우저는 카메라를 지원하지 않아요.' : '카메라는 HTTPS 주소나 localhost에서만 켜져요.');
     return false;
   }
   if (cameraBusy) return false; cameraBusy = true;
   stageMsg('카메라를 켜는 중…');
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+    const want = wantFacing();
+    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: want }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+    streamFacing = want;
     if (!CAMERA_SCREENS.has(S.screen)) { stopCamera(); return false; }
     video.srcObject = stream; await video.play().catch(() => {});
     await new Promise((r) => (video.videoWidth ? r() : video.addEventListener('loadedmetadata', r, { once: true })));
     const st = stream.getVideoTracks()[0]?.getSettings?.() || {};
-    const mirror = (st.facingMode || facing) === 'user';
+    const mirror = (st.facingMode || streamFacing) === 'user';
     $('stage').classList.toggle('mirror', mirror);
     stageMsg(''); setOverlay(S.screen); startMeter();
     return true;
   } catch (e) {
     stream = null;
-    stageMsg(e.name === 'NotAllowedError' ? '카메라 권한이 거부됐어요. 브라우저 주소창의 권한 설정에서 카메라를 허용하거나, 사진 파일로 진단해 주세요.' : '카메라를 켤 수 없어요 (' + e.name + '). 사진 파일로 진단해 주세요.');
+    camFail(e.name === 'NotAllowedError' ? '카메라 권한이 거부됐어요. 브라우저 주소창의 권한 설정에서 카메라를 허용해 주세요.' : '카메라를 켤 수 없어요 (' + e.name + ').');
     return false;
   } finally { cameraBusy = false; }
 }
 function stopCamera() {
-  clearInterval(meterTimer); meterTimer = null;
+  clearInterval(meterTimer); meterTimer = null; stopScan();
   if (stream) stream.getTracks().forEach((t) => t.stop());
-  stream = null; video.pause(); video.srcObject = null; $('meter').innerHTML = '';
+  stream = null; streamFacing = null; video.pause(); video.srcObject = null; $('meter').innerHTML = '';
+}
+// 카메라를 못 쓸 때: 화면에 맞는 대안 안내 (진단권 화면은 코드 입력, 나머지는 사진 파일)
+function camFail(why) {
+  if (S.screen === 'ticket') { stageMsg(why + ' 아래 입력칸에 카드의 코드를 입력해 주세요.'); ticketMsg('📷 카메라를 쓸 수 없어요. 카드 아래쪽 코드를 입력해 주세요.', 'bad'); }
+  else if (S.screen === 'adminScan') { stageMsg(why); $('syncMsg').textContent = '카메라를 쓸 수 없어요. 사용 기록 파일로 옮겨 주세요.'; }
+  else stageMsg(why + ' 사진 파일로 진단해 주세요.');
 }
 function stageMsg(m) { $('stageMsg').textContent = m; $('stageMsg').hidden = !m; }
-$('btnSwitch').onclick = async () => { facing = facing === 'user' ? 'environment' : 'user'; stopCamera(); const ok = await startCamera(); if (!ok) toast('카메라를 전환할 수 없어요.'); };
+$('btnSwitch').onclick = async () => {
+  if (SCAN_SCREENS.has(S.screen)) { qrFacing = qrFacing === 'user' ? 'environment' : 'user'; try { localStorage.setItem('pcqr.qrFacing', qrFacing); } catch {} }
+  else facing = facing === 'user' ? 'environment' : 'user';
+  stopCamera(); const ok = await startCamera(); if (!ok) toast('카메라를 전환할 수 없어요.'); else { setOverlay(S.screen); if (SCAN_SCREENS.has(S.screen)) startScan(); }
+};
 
 function grabFrame(maxSide = 1280) {
   const vw = video.videoWidth, vh = video.videoHeight; if (!vw) return null;
@@ -102,7 +123,7 @@ function setOverlay(screen) {
   $('layerOval').classList.toggle('faint', screen === 'drape');
   $('layerPaper').style.display = screen === 'calib' ? '' : 'none';
   const qs = Math.min(W, H) * 0.62, qr = $('qrRect'); qr.setAttribute('x', (W - qs) / 2); qr.setAttribute('y', (H - qs) / 2); qr.setAttribute('width', qs); qr.setAttribute('height', qs);
-  $('layerQr').style.display = screen === 'ticket' ? '' : 'none';
+  $('layerQr').style.display = SCAN_SCREENS.has(screen) ? '' : 'none';
   $('layerDrape').style.display = screen === 'drape' ? '' : 'none';
   // 드레이프 모양: 턱 아래에서 어깨까지
   const top = o.cy + o.ry * 0.94, side = Math.min(H - 4, o.cy + o.ry * 1.18);
@@ -132,7 +153,7 @@ function startMeter() {
   clearInterval(meterTimer);
   const small = document.createElement('canvas');
   meterTimer = setInterval(() => {
-    if (!stream || !video.videoWidth || S.screen === 'drape' || S.screen === 'ticket') { if (S.screen === 'drape' || S.screen === 'ticket') $('meter').innerHTML = ''; return; }
+    if (!stream || !video.videoWidth || S.screen === 'drape' || SCAN_SCREENS.has(S.screen)) { if (S.screen === 'drape' || SCAN_SCREENS.has(S.screen)) $('meter').innerHTML = ''; return; }
     const W = 160, H = Math.round(160 * video.videoHeight / video.videoWidth); small.width = W; small.height = H;
     const c = small.getContext('2d', { willReadFrequently: true }); c.drawImage(video, 0, 0, W, H);
     const img = c.getImageData(0, 0, W, H);
@@ -160,49 +181,80 @@ function castName([, a, b]) { if (Math.abs(b) >= Math.abs(a)) return b > 0 ? '�
 // ---------- 홈/동의 ----------
 // ---------- 진단권(QR) ----------
 const store = createStore();
-function startFlow(drapeOnly) {
-  S.drapeOnly = drapeOnly;
+// 순서: 동의 → (이어하기 / 관리자 허가 / 진단권 QR) → 보정·드레이핑. 카메라는 동의 후에만 켬
+function startFlow(drapeOnly) { S.drapeOnly = drapeOnly; S.resume = false; go('consent'); }
+function resumeFlow() { const a = store.active(); if (!a) { renderHome(); return toast('이어서 할 진단이 없어요.'); } S.drapeOnly = !!a.drapeOnly; S.resume = true; go('consent'); }
+function gate(after) {
+  S.after = after; loadFace();
   const a = store.active();
-  if (a) { S.ticket = a.id; toast('진행 중인 진단권으로 이어서 진행해요.'); return go('consent'); }
-  if (store.takePass()) { const id = 'PASS' + Date.now().toString(36).toUpperCase(); store.markUsed(id, Date.now(), 'admin'); store.startSession(id, 'admin'); S.ticket = id; toast('관리자 허가로 QR 없이 1회 진단을 시작해요.'); return go('consent'); }
+  if (S.resume && a) { S.ticket = a.id; toast('진행 중인 진단으로 이어서 해요.'); return proceed(); }
+  if (store.takePass()) { const id = 'PASS' + Date.now().toString(36).toUpperCase(); store.markUsed(id, Date.now(), 'admin'); store.startSession(id, 'admin', Date.now(), { drapeOnly: S.drapeOnly }); S.ticket = id; toast('관리자 허가로 QR 없이 1회 진단을 시작해요.'); return proceed(); }
   $('ticketCode').value = ''; ticketMsg('QR 코드를 찾는 중이에요…'); go('ticket');
 }
-function renderHomePass() {
-  const n = store.passCount(), a = store.active(), el = $('homePass');
-  el.hidden = !n && !a;
-  el.textContent = a ? '진행 중인 진단이 있어요. 진단 시작을 누르면 이어서 할 수 있어요.' : n ? `관리자 허가: QR 없이 진단 ${n}회 가능` : '';
+function proceed(fromTicket = false) {
+  if (S.after === 'photo') { if (fromTicket) { toast('[사진 파일로 진단]을 눌러 사진을 골라 주세요.', 4500); return go('capture'); } S.drapeOnly = false; return $('fileInput').click(); }
+  return go(S.after || (S.drapeOnly ? 'drape' : 'calib'));
+}
+function renderHome() {
+  $('btnResume').hidden = !store.active();
+  $('passDot').hidden = !store.passInfo(); // 직원만 알아보는 작은 점 (고객 화면에 횟수 표시 안 함)
+}
+function renderConsentInfo() {
+  const c = store.cfg(); $('cfgOperatorTxt').textContent = c.operator || '매장'; $('cfgContactTxt').textContent = c.contact ? '문의 ' + c.contact : '매장 직원에게 문의해 주세요';
 }
 function ticketMsg(m, kind = '') { const el = $('ticketMsg'); el.textContent = m; el.className = 'status' + (kind ? ' ' + kind : ''); }
-let scanTimer = null, scanBusy = false, lastBad = { t: '', at: 0 }, admitting = false;
+let scanTimer = null, scanGen = 0, lastBad = { t: '', at: 0 }, admitting = false;
 const qrCanvas = document.createElement('canvas');
 function startScan() {
   stopScan(); initDecoder(); lastBad = { t: '', at: 0 };
-  scanTimer = setInterval(async () => {
-    if (scanBusy || admitting || S.screen !== 'ticket' || !video.videoWidth) return;
-    scanBusy = true;
-    try { const txt = await decodeVideo(video, qrCanvas); if (txt && S.screen === 'ticket') await onCode(txt, 'qr'); } catch {} finally { scanBusy = false; }
-  }, 250);
+  const gen = ++scanGen;
+  // 저사양 기기 배려: 한 번 읽는 데 걸린 시간의 2배만큼 쉬고 다시 시도 (최소 250ms)
+  const loop = async () => {
+    if (gen !== scanGen) return;
+    let wait = 250;
+    if (!admitting && SCAN_SCREENS.has(S.screen) && video.videoWidth && !document.hidden) {
+      const t0 = performance.now();
+      try { const txt = await decodeVideo(video, qrCanvas); if (gen !== scanGen) return; if (txt) await (S.screen === 'adminScan' ? onSyncCode(txt) : S.screen === 'ticket' ? onCode(txt, 'qr') : null); } catch {}
+      wait = Math.max(250, 2 * (performance.now() - t0));
+    }
+    if (gen === scanGen) scanTimer = setTimeout(loop, wait);
+  };
+  scanTimer = setTimeout(loop, 150);
 }
-function stopScan() { clearInterval(scanTimer); scanTimer = null; qrCanvas.width = qrCanvas.height = 1; }
+function stopScan() { scanGen++; clearTimeout(scanTimer); scanTimer = null; qrCanvas.width = qrCanvas.height = 1; }
 async function onCode(txt, src) {
   if (src === 'qr' && txt === lastBad.t && Date.now() - lastBad.at < 20000) return; // 같은 거부 코드는 20초 동안 다시 알리지 않음
   admitting = true;
   try {
-    const r = await admit(store, txt);
+    const r = await admit(store, txt, Date.now(), src);
     if (!r.ok) { if (src === 'qr') lastBad = { t: txt, at: Date.now() }; ticketMsg('⛔ ' + r.msg, 'bad'); toast(r.msg, 4000); return; }
     stopScan(); S.ticket = r.id; ticketMsg('✅ 진단권 확인 완료', 'ok');
-    toast(r.resumed ? '진행 중인 진단권으로 이어서 진행해요.' : `진단권 ${r.id.slice(0, 4)}-${r.id.slice(4)} 확인 완료! 진단을 시작해요.`);
-    await go('consent');
+    if (!r.resumed) store.startSession(r.id, src, Date.now(), { drapeOnly: S.drapeOnly });
+    toast(r.resumed ? '진행 중인 진단으로 이어서 해요.' : `진단권 ${r.id.slice(0, 4)}-${r.id.slice(4)} 확인 완료! 진단을 시작해요.`);
+    await proceed(true);
   } finally { admitting = false; }
 }
+// 관리자: 다른 기기의 사용 기록 QR
+const syncSeen = new Set();
+async function onSyncCode(txt) {
+  if (syncSeen.has(txt)) return;
+  const r = await readSyncQr(txt); if (!r.ok) { $('syncMsg').textContent = '⛔ ' + r.msg; return; }
+  syncSeen.add(txt); const nu = store.mergeUsed(r.used), nr = store.mergeRevoked(r.revoked);
+  $('syncMsg').className = 'status ok'; $('syncMsg').textContent = `✅ ${r.page}/${r.pages}쪽 가져옴 — 새 사용 기록 ${nu}개 · 취소 ${nr}개${r.pages > 1 ? ' (다음 쪽을 비춰 주세요)' : ''}`;
+  toast(`사용 기록 ${r.page}/${r.pages}쪽을 가져왔어요.`);
+}
+function openSyncScan() { syncSeen.clear(); $('syncMsg').className = 'status'; $('syncMsg').textContent = 'QR 코드를 찾는 중이에요…'; go('adminScan'); }
+$('btnSyncDone').onclick = () => admin.open();
 $('btnTicketCode').onclick = () => { const v = $('ticketCode').value.trim(); if (!v) return toast('카드에 적힌 코드를 입력해 주세요.'); onCode(v, 'manual'); };
 $('ticketCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btnTicketCode').click(); });
-$('btnTicketCancel').onclick = () => go('home');
+$('btnTicketCancel').onclick = () => resetAll(false);
 $('btnStart').onclick = () => startFlow(false);
 $('btnDrapeOnly').onclick = () => startFlow(true);
-$('chkConsent').onchange = (e) => { $('btnConsentCam').disabled = $('btnConsentPhoto').disabled = !e.target.checked; };
-$('btnConsentCam').onclick = () => { loadFace(); go(S.drapeOnly ? 'drape' : 'calib'); };
-$('btnConsentPhoto').onclick = () => { loadFace(); S.drapeOnly = false; $('fileInput').click(); };
+$('btnResume').onclick = resumeFlow;
+const consentOk = () => $('chkConsent').checked && $('chkAge').checked;
+$('chkConsent').onchange = $('chkAge').onchange = () => { $('btnConsentCam').disabled = $('btnConsentPhoto').disabled = !consentOk(); };
+$('btnConsentCam').onclick = () => { if (consentOk()) gate(S.drapeOnly ? 'drape' : 'calib'); };
+$('btnConsentPhoto').onclick = () => { if (consentOk()) gate('photo'); };
 $('btnConsentNo').onclick = () => resetAll(false);
 $('btnUpload').onclick = () => $('fileInput').click();
 
@@ -411,23 +463,26 @@ function resultPane(tab) {
     <div class="tipsgrid"><div><h4>💄 메이크업</h4><p>${s.makeup}</p></div><div><h4>💇 헤어</h4><p>${s.hair}</p></div><div><h4>💍 액세서리</h4><p>${s.acc}</p></div></div>`;
 }
 function renderResult() {
-  const r = S.final, s = r.season, fid = faceId(), auto = r.face;
+  const r = S.final, s = r.season, fid = faceId(), auto = r.face, box = S.screen === 'shared' ? $('sharedCard') : $('resultCard');
   const opts = (fid ? '' : '<option value="" selected>선택해 주세요</option>') + FACE_ORDER.map((id) => `<option value="${id}" ${id === fid ? 'selected' : ''}>${FACE_SHAPES[id].name}</option>`).join('');
   const fnote = S.faceShape && auto && S.faceShape !== auto.id ? `직접 선택 (자동 추정: ${FACE_SHAPES[auto.id].name})`
     : S.faceShape && !auto ? '직접 선택'
-    : auto ? `자동 추정 · ${auto.label} — ${auto.note}` : '얼굴 자동 인식이 없어요. 고객 얼굴을 보고 직접 골라 주세요.';
-  $('resultCard').innerHTML = `
+    : auto ? `자동 추정 · ${auto.label} — ${auto.note}` : r.sharedFace ? '매장에서 고른 얼굴형이에요.' : S.screen === 'shared' ? '얼굴형을 고르면 안경·눈썹 추천이 나와요.' : '얼굴 자동 인식이 없어요. 고객 얼굴을 보고 직접 골라 주세요.';
+  box.innerHTML = `
     <div class="card-top" style="background:linear-gradient(90deg,${s.best.slice(0, 6).map((c) => c.hex).join(',')})"></div>
     <div class="card-head"><small>나의 퍼스널컬러</small><h1 id="resName">${s.name}</h1><p class="kw">${s.short} · ${s.keywords.join(' · ')}</p>
       <p class="meta"><span class="chip ${r.conf.level}">신뢰도 ${r.conf.label}</span> <span class="chip">${r.method}</span> <span class="chip ghost">2순위 ${r.second.name}</span></p></div>
     <div class="facerow"><label for="selFace">얼굴형</label><select id="selFace">${opts}</select><span class="fnote" id="faceNote">${fnote}</span></div>
     <div class="rtabs" role="tablist">${RTABS.map(([k, l]) => `<button type="button" role="tab" class="rtab ${S.resTab === k ? 'on' : ''}" data-rtab="${k}" aria-selected="${S.resTab === k}">${l}</button>`).join('')}</div>
     <div class="rpane" id="rpane" data-tab="${S.resTab}">${resultPane(S.resTab)}</div>
-    ${r.changed ? `<p class="note">드레이핑 선택을 반영해 자동 분석(${SEASONS[S.auto.cls.top[0].id].name})과 다른 결과가 나왔어요.</p>` : ''}
+    ${r.changed && S.auto ? `<p class="note">드레이핑 선택을 반영해 자동 분석(${SEASONS[S.auto.cls.top[0].id].name})과 다른 결과가 나왔어요.</p>` : ''}
     <p class="note">카메라와 조명에 따라 달라질 수 있는 추정 결과이고, 추천은 일반적인 스타일링 가이드에 따른 제안이에요. 실제 옷·안경·화장품을 대 보며 함께 확인해 주세요.</p>`;
 }
-$('resultCard').addEventListener('click', (e) => { const t = e.target.closest('[data-rtab]'); if (!t || !S.final) return; S.resTab = t.dataset.rtab; renderResult(); });
-$('resultCard').addEventListener('change', (e) => { if (e.target.id !== 'selFace' || !S.final) return; S.faceShape = e.target.value || null; renderResult(); });
+for (const id of ['resultCard', 'sharedCard']) {
+  $(id).addEventListener('click', (e) => { const t = e.target.closest('[data-rtab]'); if (!t || !S.final) return; S.resTab = t.dataset.rtab; renderResult(); });
+  $(id).addEventListener('change', (e) => { if (e.target.id !== 'selFace' || !S.final) return; S.faceShape = e.target.value || null; renderResult(); });
+}
+$('btnSharedPng').onclick = () => $('btnSavePng').onclick();
 $('btnSavePng').onclick = async () => {
   if (!S.final) return;
   const cv = document.createElement('canvas'); renderCardCanvas(cv, { ...S.final, faceId: faceId() });
@@ -442,14 +497,48 @@ $('btnSavePng').onclick = async () => {
   setTimeout(() => URL.revokeObjectURL(url), 4000); toast('결과 이미지를 저장했어요.');
 };
 
+// ---------- 결과를 고객 휴대폰으로 (서버 없이: 주소의 # 뒤에 결과 코드만 담음, #은 서버로 전송되지 않음) ----------
+const resultUrl = () => location.origin + location.pathname + '#r=' + encodeResult(S.final, faceId());
+$('btnResultQr').onclick = () => {
+  if (!S.final) return;
+  const cv = $('rqCanvas'), ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height); drawQr(ctx, resultUrl(), 0, 0, cv.width, 3);
+  cv.dataset.url = resultUrl(); $('rqView').hidden = false;
+};
+$('btnRqClose').onclick = () => { $('rqView').hidden = true; const cv = $('rqCanvas'); cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); delete cv.dataset.url; };
+function openShared() {
+  const m = /^#r=([0-9a-z]+)$/.exec(location.hash); if (!m) return false;
+  const f = decodeResult(m[1]);
+  S = fresh(); S.screen = 'shared';
+  if (!f) { go('home'); toast('결과 주소가 올바르지 않아요.', 4500); return true; }
+  S.final = f; S.faceShape = f.sharedFace; go('shared').then(renderResult); return true;
+}
+window.addEventListener('hashchange', () => { if (location.hash.startsWith('#r=')) openShared(); });
+
+// ---------- 고객 무동작 자동 초기화 (2분 30초 → '계속하시겠어요?' 20초 → 카메라 끄고 처음으로) ----------
+const IDLE = { ms: 150000, cd: 20000, last: Date.now(), promptAt: 0 };
+function touchIdle() { IDLE.last = Date.now(); if (IDLE.promptAt) hideIdle(); }
+function hideIdle() { IDLE.promptAt = 0; $('idlePrompt').hidden = true; }
+['pointerdown', 'keydown', 'input', 'wheel', 'touchstart'].forEach((ev) => document.addEventListener(ev, () => touchIdle(), { passive: true, capture: true }));
+setInterval(() => {
+  const now = Date.now();
+  if (NO_IDLE.has(S.screen) || S.screen.startsWith('admin')) { if (IDLE.promptAt) hideIdle(); IDLE.last = now; return; }
+  if (!IDLE.promptAt && now - IDLE.last >= IDLE.ms) { IDLE.promptAt = now; $('idlePrompt').hidden = false; }
+  if (IDLE.promptAt) {
+    const left = Math.max(0, Math.ceil((IDLE.cd - (now - IDLE.promptAt)) / 1000)); $('idleCount').textContent = left;
+    if (now - IDLE.promptAt >= IDLE.cd) { hideIdle(); store.endSession(); resetAll(false).then(() => toast('오래 사용하지 않아 처음 화면으로 돌아왔어요.', 4000)); }
+  }
+}, 250);
+$('btnIdleContinue').onclick = () => touchIdle();
+
 // ---------- 초기화 ----------
 async function resetAll(confirmFirst = true) {
   if (confirmFirst && S.screen !== 'home' && !(await ask('지금까지의 진단 내용을 모두 지우고 처음으로 돌아갈까요?'))) return;
   stopCamera(); wipeWork();
   S = fresh();
-  $('chkConsent').checked = false; $('btnConsentCam').disabled = $('btnConsentPhoto').disabled = true;
+  $('chkConsent').checked = $('chkAge').checked = false; $('btnConsentCam').disabled = $('btnConsentPhoto').disabled = true;
+  $('rqView').hidden = true; hideIdle(); if (location.hash) history.replaceState(null, '', location.pathname + location.search);
   $('fileInput').value = '';
-  for (const id of ['autoBody', 'resultCard', 'voteSummary', 'meter', 'autoConf', 'roundProg', 'roundTitle', 'roundQ', 'btnPickL', 'btnPickR', 'browseName', 'selL', 'selR']) $(id).innerHTML = '';
+  for (const id of ['autoBody', 'resultCard', 'sharedCard', 'voteSummary', 'meter', 'autoConf', 'roundProg', 'roundTitle', 'roundQ', 'btnPickL', 'btnPickR', 'browseName', 'selL', 'selR']) $(id).innerHTML = '';
   $('toast').hidden = true; $('modal').hidden = true;
   setDrape('transparent', null, '', '');
   // 진단 데이터는 저장하지 않지만, 혹시 남은 값이 있으면 지움 (진단권 사용 기록 pcqr.* 만 유지: 코드 ID·시각, 개인정보 없음)
@@ -460,15 +549,43 @@ $('btnReset').onclick = () => resetAll(true);
 $('btnNextCustomer').onclick = () => resetAll(false);
 
 // 화면 전환/백그라운드 시 카메라 해제
-document.addEventListener('visibilitychange', () => { if (document.hidden) stopCamera(); else if (CAMERA_SCREENS.has(S.screen)) startCamera(); });
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden) { stopCamera(); return; }
+  if (CAMERA_SCREENS.has(S.screen)) { await startCamera(); if (SCAN_SCREENS.has(S.screen) && stream) startScan(); }
+  wake();
+});
 window.addEventListener('resize', () => setOverlay(S.screen));
 
 // 테스트용 읽기 전용 상태 노출
-const admin = initAdmin({ $, go, toast, ask, store, getScreen: () => S.screen });
-window.__pc = { get state() { return S; }, get stream() { return stream; }, faceStatus, admin, store };
+const admin = initAdmin({ $, go, toast, ask, store, getScreen: () => S.screen, openSyncScan, onCfg: () => wake() });
+window.__pc = { get state() { return S; }, get stream() { return stream; }, faceStatus, admin, store, setIdle: (ms, cd) => { IDLE.ms = ms; IDLE.cd = cd ?? IDLE.cd; IDLE.last = Date.now(); }, get wakeLock() { return wakeLock; }, encodeResult, decodeResult, resultUrl: () => (S.final ? resultUrl() : null) };
+
+// ---------- 기기 시계 확인 (시계를 뒤로 돌리면 관리자에게 경고) ----------
+store.touchSeen(); setInterval(() => store.touchSeen(), 60000);
+
+// ---------- 화면 꺼짐 방지 · 전체 화면 ----------
+let wakeLock = null;
+async function wake() {
+  try {
+    if (store.cfg().wake === false) { await wakeLock?.release(); wakeLock = null; return; }
+    if (!('wakeLock' in navigator) || document.hidden || (wakeLock && !wakeLock.released)) return;
+    wakeLock = await navigator.wakeLock.request('screen');
+  } catch { wakeLock = null; }
+}
+document.addEventListener('pointerdown', () => { if (!wakeLock || wakeLock.released) wake(); }, { passive: true });
+wake();
+const fsOk = !!(document.fullscreenEnabled && document.documentElement.requestFullscreen);
+$('btnFull').hidden = !fsOk;
+$('btnFull').onclick = async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch { toast('전체 화면을 쓸 수 없어요.'); } };
+document.addEventListener('fullscreenchange', () => { $('btnFull').textContent = document.fullscreenElement ? '🗗' : '⛶'; $('btnFull').setAttribute('aria-label', document.fullscreenElement ? '전체 화면 끝내기' : '전체 화면'); });
 
 // 서비스 워커 (HTTPS 또는 localhost)
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  // 새 버전이 설치되면 진행 중인 진단을 방해하지 않게 '새로고침' 안내만 띄움
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) $('updBar').hidden = false; });
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').then((reg) => { setInterval(() => { if (S.screen === 'home') reg.update().catch(() => {}); }, 30 * 60 * 1000); }).catch(() => {}));
 }
-go('home');
+$('btnUpdReload').onclick = () => location.reload(); // 진행 중이던 진단은 첫 화면의 [이어하기]로 계속
+$('btnUpdLater').onclick = () => { $('updBar').hidden = true; };
+if (!openShared()) go('home');

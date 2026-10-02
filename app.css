@@ -171,7 +171,7 @@ body[data-screen="drape"].has-stage .stage { height:52vh; height:clamp(180px, ca
 @media (max-width:600px) { .screen > .bigbtns > .btn:not(.primary) { font-size:16px; padding:6px 8px; } }
 /* ---------- 진단권(QR) · 관리자 ---------- */
 .overlay .qrline { fill:none; stroke:#fff; stroke-width:6; stroke-dasharray:28 14; }
-body[data-screen="ticket"].has-stage .stage { height:50vh; height:clamp(180px, calc(100dvh - 400px), 52dvh); }
+body[data-screen="ticket"].has-stage .stage, body[data-screen="adminScan"].has-stage .stage { height:50vh; height:clamp(180px, calc(100dvh - 400px), 52dvh); }
 .lead.sm { font-size:17px; margin:4px 0 8px; }
 .status.bad { border-color:var(--bad); color:var(--bad); font-weight:700; background:#fdf0ee; }
 .manual { display:flex; flex-direction:column; gap:6px; margin:10px 0 0; font-size:15px; color:var(--sub); font-weight:600; }
@@ -215,3 +215,48 @@ body[data-screen="ticket"].has-stage .stage { height:50vh; height:clamp(180px, c
 @media (max-height:760px) { .cardpreview { max-width:min(440px, 68%); } .cardnav { margin:6px 0 4px; } .cardnav .btn { min-height:44px; } [data-for="admin"] .tab { min-height:44px; } .adminhead h2 { font-size:20px; margin-bottom:4px; } }
 .screen[data-for="home"] { position:relative; }
 .screen[data-for="home"] > .linkbtn { position:absolute; top:2px; right:2px; margin:0; min-height:40px; z-index:2; }
+/* ---------- v1.4 ---------- */
+.iconbtn { min-width:48px; min-height:48px !important; padding:0 !important; font-size:22px !important; margin-left:auto; }
+.topbar .iconbtn + .btn.ghost { margin-left:0; }
+body[data-screen="shared"] #btnReset, body[data-screen="shared"] #btnFull { display:none; }
+.linkbtn { opacity:1; color:#5a5168; min-height:44px !important; min-width:56px; padding:10px 8px; }
+.passdot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#7a5bb5; margin-left:4px; vertical-align:super; }
+.btn.resume { border-color:var(--ok); color:var(--ok); }
+.camnote { margin:0 0 8px; font-size:15px; color:#4b4358; background:#fff; border-radius:10px; padding:8px 10px; border:1px dashed var(--line); }
+.screen > .bigbtns .check { line-height:1.35; }
+[data-for="consent"] .consent-list { margin-top:4px; } [data-for="consent"] .consent-list li { margin:6px 0; }
+[data-for="consent"] .bigbtns > .btn:not(.primary) { flex:1 1 40%; }
+@media (max-width:600px) { [data-for="consent"] .consent-list { font-size:15px; line-height:1.5; } .screen > .bigbtns .check { font-size:16px; padding:8px 10px; gap:10px; } .check input { width:26px; height:26px; flex:none; } }
+.clockwarn { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:0 0 8px; font-size:15px; }
+.issuerow .memo { grid-column:1/-1; } .issuerow .memo input { width:100%; }
+@media (min-width:700px) { .issuerow .memo { grid-column:auto; } .issuerow { grid-template-columns:1fr 1.2fr 1.4fr 1fr; } }
+.listbar { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:6px; } .listbar select { min-height:48px; font-size:16px; min-width:0; width:100%; }
+.qrow .qd { font-size:14px; }
+@media (max-width:600px) { .qrow { grid-template-columns:1fr auto 64px; grid-template-rows:auto auto; row-gap:2px; } .qrow .mono { grid-column:1; } .qrow .qd { display:block !important; grid-column:1 / -1; grid-row:2; font-size:13px; }
+  .qrow .st { grid-column:2; grid-row:1; } .qrow > :nth-child(4) { grid-column:3; grid-row:1 / span 2; } .qrow.brow { grid-template-columns:1fr auto; } }
+.statgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; } .statgrid.five { grid-template-columns:repeat(5,1fr); }
+.statgrid > div { background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px 6px; text-align:center; display:flex; flex-direction:column; gap:2px; }
+.statgrid b { font-size:26px; color:var(--pri); } .statgrid span { font-size:14px; color:var(--sub); } .statgrid .warnbox { border-color:var(--warn); } .statgrid .warnbox b { color:var(--warn); }
+@media (max-width:600px) { .statgrid.five { grid-template-columns:repeat(3,1fr); } }
+.bars { display:flex; gap:6px; align-items:flex-end; height:140px; background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px 8px 6px; }
+.barcol { flex:1; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:2px; font-size:13px; }
+.barcol i { display:block; width:70%; min-height:2px; background:var(--pri2); border-radius:6px 6px 0 0; } .barcol b { font-size:14px; } .barcol span { color:var(--sub); }
+[data-for="admin"] h3 { margin:16px 0 8px; font-size:18px; } [data-for="admin"] h3 small { font-size:14px; color:var(--sub); font-weight:600; }
+.setgrid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:8px; margin-bottom:6px; } .setgrid .btn { font-size:16px; }
+.check.sm { font-size:16px; padding:10px 12px; margin-bottom:6px; } .check.sm input { width:24px; height:24px; }
+.pv-progress { height:6px; background:#3a3346; } .pv-progress i { display:block; height:100%; width:0; background:#c9b6ef; transition:width .2s; }
+.countdown { font-size:22px; font-weight:800; color:var(--bad); text-align:center; } .countdown span { font-size:34px; }
+#idlePrompt .modal-btns .btn { flex:1; }
+.qrbox { text-align:center; } .qrbox canvas { width:min(70vw, 300px); height:auto; aspect-ratio:1; image-rendering:pixelated; border-radius:8px; background:#fff; }
+.qrbox .modal-btns { justify-content:center; flex-wrap:wrap; }
+.updbar { position:fixed; left:50%; bottom:max(14px, env(safe-area-inset-bottom)); transform:translateX(-50%); z-index:28; display:flex; align-items:center; gap:10px; background:#2b2340; color:#fff; padding:10px 12px 10px 18px; border-radius:16px; font-size:17px; font-weight:700; box-shadow:0 6px 20px rgba(0,0,0,.35); max-width:94vw; }
+.updbar .btn { min-height:48px; font-size:16px; padding:6px 14px; }
+.sharednote { margin:4px 0 10px; font-size:15px; color:var(--sub); }
+[data-for="adminScan"] .bigbtns .btn { flex-basis:100%; }
+/* 결과 화면 하단: 저장 · 휴대폰으로 / 드레이핑 다시 · 다음 고객 (2×2) */
+[data-for="result"] .bigbtns.row > .btn.primary { flex:1 1 40%; }
+@media (orientation:landscape) and (min-width:800px) { [data-for="result"] .bigbtns.row > .btn, [data-for="result"] .bigbtns.row > .btn.primary { flex:1 1 40%; } }
+[data-for="admin"] .bigbtns > .btn { font-size:17px; }
+#btnReset { white-space:nowrap; }
+@media (max-width:420px) { .topbar { gap:8px; } .brand { font-size:16px; gap:8px; } .topbar #btnReset { font-size:16px; padding:6px 10px; min-height:44px; } .iconbtn { min-width:44px; min-height:44px !important; font-size:20px !important; } }
+@media (max-width:600px) { .topbar #btnReset, .topbar .iconbtn { min-height:48px !important; } .iconbtn { min-width:48px; } }

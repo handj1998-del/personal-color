@@ -1,8 +1,8 @@
 // 오프라인 캐시 (외부 요청 없음). 버전을 올리면 새 파일로 교체됨
-const VERSION = 'pc-v1.3.0';
+const VERSION = 'pc-v1.4.0';
 const CORE = [
   './', 'index.html', 'app.css', 'manifest.webmanifest', 'icons/icon.svg',
-  'js/app.js', 'js/color.js', 'js/analyzer.js', 'js/seasons.js', 'js/face.js', 'js/card.js', 'js/style.js', 'js/ticket.js', 'js/qr.js', 'js/admin.js', 'js/qrcard.js', 'vendor/qr/jsqr.mjs', 'vendor/qr/qrcode.mjs',
+  'js/app.js', 'js/color.js', 'js/analyzer.js', 'js/seasons.js', 'js/face.js', 'js/card.js', 'js/style.js', 'js/ticket.js', 'js/qr.js', 'js/admin.js', 'js/qrcard.js', 'js/share.js', 'vendor/qr/jsqr.mjs', 'vendor/qr/qrcode.mjs',
 ];
 // 없어도 앱은 동작(얼굴 자동 인식 대신 타원 가이드 사용). 있으면 오프라인용으로 함께 저장
 const OPTIONAL = [
@@ -13,8 +13,10 @@ const OPTIONAL = [
 ];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then(async (c) => {
-    await c.addAll(CORE);
-    await Promise.allSettled(OPTIONAL.map((u) => c.add(u)));
+    // cache:'reload' → 브라우저 HTTP 캐시(최대 10분)를 건너뛰고 서버에서 새로 받아 버전이 섞이지 않게 함
+    const fresh = (u) => new Request(u, { cache: 'reload' });
+    await c.addAll(CORE.map(fresh));
+    await Promise.allSettled(OPTIONAL.map((u) => c.add(fresh(u))));
   }).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {

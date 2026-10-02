@@ -19,6 +19,7 @@
 <header class="topbar">
   <div class="brand" id="brand"><span class="logo" aria-hidden="true"></span>퍼스널컬러 진단</div>
   <div class="steps" id="steps" aria-hidden="true"></div>
+  <button class="btn ghost iconbtn" id="btnFull" type="button" aria-label="전체 화면" title="전체 화면">⛶</button>
   <button class="btn ghost" id="btnReset" type="button">⟲ 처음으로</button>
 </header>
 
@@ -58,25 +59,26 @@
   <section class="panel" id="panel">
     <!-- 홈 -->
     <div class="screen" data-for="home">
-      <button class="linkbtn" id="btnAdmin" type="button">관리자</button>
+      <button class="linkbtn" id="btnAdmin" type="button">관리자<i class="passdot" id="passDot" hidden></i></button>
       <h1>퍼스널컬러 진단</h1>
       <p class="lead">카메라로 피부·눈동자·머리카락 색을 측정해 사계절 8타입 중 어울리는 타입을 추정하고, 드레이핑으로 직접 비교해 확인해요.</p>
       <div class="bigbtns">
         <button class="btn primary xl" id="btnStart" type="button">진단 시작</button>
         <button class="btn xl" id="btnDrapeOnly" type="button">드레이핑만 하기</button>
+        <button class="btn xl resume" id="btnResume" type="button" hidden>↻ 진행 중인 진단 이어하기</button>
       </div>
       <ul class="notes">
         <li>사진은 저장·전송하지 않고 이 기기 안에서만 분석해요.</li>
-        <li>인터넷 연결 없이도 동작해요.</li>
+        <li>한 번 접속한 뒤에는 인터넷 연결 없이도 동작해요.</li>
         <li>진단을 시작하려면 매장에서 받은 <b>진단권 QR</b>이 필요해요.</li>
       </ul>
-      <p class="status ok" id="homePass" hidden></p>
     </div>
 
     <!-- 진단권(QR) 확인 -->
     <div class="screen" data-for="ticket">
       <h2>진단권 확인</h2>
       <p class="lead sm">진단권 카드의 <b>QR 코드</b>를 화면의 네모 안에 보여 주세요.</p>
+      <p class="camnote">📷 카메라는 QR 확인에만 쓰고 저장하지 않아요. (⇄ 버튼으로 앞/뒤 카메라 전환)</p>
       <div class="status" id="ticketMsg">QR 코드를 찾는 중이에요…</div>
       <div class="bigbtns">
         <label class="manual" for="ticketCode">카메라로 안 읽히면 카드의 코드를 입력해 주세요
@@ -100,10 +102,12 @@
 
     <!-- 관리자 -->
     <div class="screen" data-for="admin">
-      <div class="adminhead"><h2>관리자 모드</h2><span class="chip" id="adminPassChip"></span></div>
+      <div class="adminhead"><h2>관리자 모드</h2><span class="chip" id="adminPassChip" hidden></span><button class="btn sm" id="btnPassCancel" type="button" hidden>허가 취소</button></div>
+      <div class="status bad clockwarn" id="clockWarn" hidden><span id="clockWarnTxt"></span> <button class="btn sm" id="btnClockOk" type="button">확인함</button></div>
       <div class="tabs" role="tablist">
-        <button class="tab on" id="tabIssue" type="button" role="tab">진단권 발급</button>
-        <button class="tab" id="tabList" type="button" role="tab">발급 목록</button>
+        <button class="tab on" id="tabIssue" type="button" role="tab">발급</button>
+        <button class="tab" id="tabList" type="button" role="tab">목록</button>
+        <button class="tab" id="tabStats" type="button" role="tab">통계</button>
         <button class="tab" id="tabSettings" type="button" role="tab">설정</button>
       </div>
       <div id="admIssue">
@@ -111,6 +115,7 @@
           <label>수량 <input id="issueQty" type="number" min="1" max="50" value="10" inputmode="numeric"></label>
           <label>유효기간 <select id="issueExp"><option value="0">기한 없음</option><option value="30">30일</option><option value="90" selected>90일</option><option value="180">180일</option><option value="365">1년</option><option value="date">날짜 지정</option></select></label>
           <input id="issueDate" type="date" hidden aria-label="만료일">
+          <label class="memo">묶음 메모 (선택) <input id="issueMemo" type="text" maxlength="20" placeholder="예: 10월 이벤트" autocomplete="off"></label>
           <button class="btn primary" id="btnIssue" type="button">발급하기</button>
         </div>
         <div id="issueResult" hidden>
@@ -124,11 +129,41 @@
         </div>
       </div>
       <div id="admList" hidden>
+        <div class="listbar"><select id="listBatch" aria-label="묶음 선택"><option value="">전체 묶음</option></select><select id="listStatus" aria-label="상태 선택"><option value="">전체 상태</option><option value="new">미사용</option><option value="used">사용됨</option><option value="revoked">취소됨</option><option value="expired">만료</option></select></div>
         <p class="sub" id="listSummary"></p>
         <div class="qlist" id="qList"></div>
-        <button class="btn" id="btnPrintUnused" type="button">미사용 코드 다시 인쇄</button>
+        <button class="btn" id="btnPrintUnused" type="button">이 목록의 미사용 코드 인쇄</button>
       </div>
+      <div id="admStats" hidden></div>
       <div id="admSettings" hidden>
+        <h3>운영 정보 <small>(동의 화면에 표시)</small></h3>
+        <div class="pwgrid">
+          <label>운영 주체 <input id="cfgOp" type="text" maxlength="40" autocomplete="off"></label>
+          <label>문의처 (전화번호 등) <input id="cfgCt" type="text" maxlength="40" autocomplete="off" placeholder="비우면 '매장 직원에게 문의해 주세요'"></label>
+        </div>
+        <button class="btn" id="btnCfgSave" type="button">운영 정보 저장</button>
+        <h3>데이터 백업</h3>
+        <div class="setgrid">
+          <button class="btn" id="btnBackup" type="button">백업 파일 저장 (JSON)</button>
+          <button class="btn" id="btnRestore" type="button">백업·기록 파일 불러오기</button>
+          <button class="btn" id="btnCsv" type="button">발급 목록 엑셀(CSV)</button>
+        </div>
+        <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+        <h3>다른 기기와 사용 기록 맞추기</h3>
+        <p class="sub">사용·취소된 코드 목록을 다른 기기로 옮겨, 그 기기에서도 같은 카드를 거부하게 해요.</p>
+        <div class="setgrid">
+          <button class="btn" id="btnUsedExport" type="button">사용 기록 파일 저장</button>
+          <button class="btn" id="btnSyncQr" type="button">사용 기록 QR 보기</button>
+          <button class="btn" id="btnSyncScan" type="button">QR로 가져오기 (카메라)</button>
+        </div>
+        <h3>기기 설정</h3>
+        <label class="check sm"><input type="checkbox" id="cfgWake"> 화면 꺼짐 방지 (진단 기기용)</label>
+        <p class="sub" id="persistStatus"></p>
+        <div class="setgrid">
+          <button class="btn" id="btnPersist" type="button">저장소 보호 요청</button>
+          <button class="btn" id="btnInstall" type="button" hidden>홈 화면에 앱 설치</button>
+        </div>
+        <p class="sub">기록이 지워지지 않게 브라우저 메뉴에서 <b>홈 화면에 추가</b>(앱 설치)해서 쓰세요. 아이패드 사파리는 홈 화면에 추가하지 않으면 오래 안 쓸 때 기록이 지워질 수 있어요.</p>
         <h3>비밀번호 변경</h3>
         <div class="pwgrid">
           <label>현재 비밀번호 <input id="pwCur" type="password" inputmode="numeric" maxlength="12" autocomplete="off"></label>
@@ -136,11 +171,21 @@
           <label>새 비밀번호 확인 <input id="pwNew2" type="password" inputmode="numeric" maxlength="12" autocomplete="off"></label>
         </div>
         <button class="btn" id="btnPwChange" type="button">비밀번호 변경</button>
-        <p class="note">QR 1회 사용 기록과 비밀번호는 이 기기에만 저장돼요. 다른 기기와 공유되지 않아요.</p>
+        <p class="note">QR 1회 사용 기록과 비밀번호는 이 기기에만 저장돼요. 다른 기기와는 위의 파일·QR로만 옮길 수 있어요.</p>
       </div>
       <div class="bigbtns">
-        <button class="btn primary" id="btnGrantPass" type="button">QR 없이 진단 1회 허가</button>
+        <button class="btn primary" id="btnGrantPass" type="button">QR 없이 1회 허가</button>
         <button class="btn" id="btnAdminLogout" type="button">로그아웃</button>
+      </div>
+    </div>
+
+    <!-- 관리자: 다른 기기의 사용 기록 QR 읽기 -->
+    <div class="screen" data-for="adminScan">
+      <h2>사용 기록 QR 가져오기</h2>
+      <p class="lead sm">다른 기기의 [사용 기록 QR 보기] 화면을 카메라에 비춰 주세요. 여러 장이면 차례로 비추면 돼요.</p>
+      <div class="status" id="syncMsg">QR 코드를 찾는 중이에요…</div>
+      <div class="bigbtns">
+        <button class="btn primary" id="btnSyncDone" type="button">완료</button>
       </div>
     </div>
 
@@ -148,14 +193,17 @@
     <div class="screen" data-for="consent">
       <h2>촬영 전 안내</h2>
       <ul class="consent-list">
-        <li><b>카메라 사용</b> 얼굴 색을 측정하기 위해 카메라를 켭니다.</li>
-        <li><b>저장·전송 없음</b> 얼굴 영상과 사진은 저장하거나 서버로 보내지 않아요. 분석이 끝나면 바로 지워지고 카메라도 꺼져요.</li>
-        <li><b>결과 이미지</b> 결과 카드에는 색과 글자만 들어가고 얼굴 사진은 들어가지 않아요.</li>
+        <li><b>이용 목적</b> 어울리는 색(퍼스널컬러)을 추정하고 드레이핑으로 비교하기 위해 카메라로 얼굴 색을 측정해요.</li>
+        <li><b>처리 방식 · 저장 안 함</b> 얼굴 영상은 이 기기 안에서만 실시간으로 분석하고, 저장하거나 서버로 보내지 않아요. 분석이 끝나면 바로 지우고 카메라도 꺼요.</li>
+        <li><b>결과</b> 결과 이미지와 휴대폰 전송용 QR에는 색과 글자만 들어가고 얼굴 사진·이름 같은 개인정보는 들어가지 않아요.</li>
+        <li><b>동의 거부</b> 동의하지 않을 수 있어요. 동의하지 않으면 카메라 진단만 이용할 수 없고, 그 밖의 불이익은 없어요.</li>
         <li><b>추정 결과</b> 조명과 카메라에 따라 달라질 수 있는 참고용 결과예요. 의학적·전문 진단이 아니에요.</li>
+        <li><b>운영 · 문의</b> <span id="cfgOperatorTxt">롯데렌터카 김해공항</span> · <span id="cfgContactTxt">매장 직원에게 문의해 주세요</span></li>
       </ul>
       <div class="bigbtns">
         <label class="check"><input type="checkbox" id="chkConsent"> 위 안내를 확인했고 촬영에 동의합니다.</label>
-        <button class="btn primary xl" id="btnConsentCam" type="button" disabled>동의하고 카메라 켜기</button>
+        <label class="check"><input type="checkbox" id="chkAge"> 만 14세 이상이에요. (만 14세 미만은 보호자가 확인·동의)</label>
+        <button class="btn primary xl" id="btnConsentCam" type="button" disabled>동의하고 시작하기</button>
         <button class="btn xl" id="btnConsentPhoto" type="button" disabled>사진 파일로 진단</button>
         <button class="btn ghost" id="btnConsentNo" type="button">동의하지 않음</button>
       </div>
@@ -254,9 +302,18 @@
     <div class="screen" data-for="result">
       <div id="resultCard" class="card"></div>
       <div class="bigbtns row">
-        <button class="btn primary xl" id="btnSavePng" type="button">결과 이미지 저장 (PNG)</button>
+        <button class="btn primary xl" id="btnSavePng" type="button">결과 이미지 저장</button>
+        <button class="btn primary xl" id="btnResultQr" type="button">📱 휴대폰으로 받기</button>
         <button class="btn xl" id="btnBackDrape" type="button">드레이핑 다시 보기</button>
         <button class="btn danger xl" id="btnNextCustomer" type="button">다음 고객 (초기화)</button>
+      </div>
+    </div>
+    <!-- 고객 휴대폰: 결과 보기 (읽기 전용, #r=… 주소) -->
+    <div class="screen" data-for="shared">
+      <p class="sharednote">매장 기기에서 받은 퍼스널컬러 결과예요. 얼굴 사진·개인정보는 들어 있지 않아요.</p>
+      <div id="sharedCard" class="card"></div>
+      <div class="bigbtns row">
+        <button class="btn primary xl" id="btnSharedPng" type="button">결과 이미지 저장</button>
       </div>
     </div>
   </section>
@@ -270,8 +327,27 @@
 </div>
 <div class="printview" id="printView" hidden>
   <div class="pv-bar"><b id="pvTitle">인쇄 미리보기</b><button class="btn primary" id="btnDoPrint" type="button">인쇄하기</button><button class="btn" id="btnSheetPng" type="button">시트 PNG</button><button class="btn" id="btnPvPdf" type="button">PDF</button><button class="btn" id="btnPvClose" type="button">닫기</button></div>
+  <div class="pv-progress" id="pvProgress" hidden><i id="pvBar"></i></div>
   <div class="pv-pages" id="pvPages"></div>
 </div>
+<div class="modal" id="idlePrompt" hidden>
+  <div class="modal-box"><p><b>계속하시겠어요?</b><br>오래 사용하지 않으면 개인정보 보호를 위해 처음 화면으로 돌아가요.</p>
+    <p class="countdown"><span id="idleCount">20</span>초 후 처음으로</p>
+    <div class="modal-btns"><button class="btn primary xl" id="btnIdleContinue" type="button">계속하기</button></div></div>
+</div>
+<div class="modal" id="rqView" hidden>
+  <div class="modal-box qrbox"><p><b>휴대폰 카메라로 QR을 찍어 주세요</b></p>
+    <canvas id="rqCanvas" width="360" height="360" aria-label="결과 보기 QR"></canvas>
+    <p class="sub">색·타입 정보만 주소에 담겨요. 얼굴 사진·개인정보는 없고, 서버에 저장되지 않아요. (휴대폰에서 열 때 인터넷 필요)</p>
+    <div class="modal-btns"><button class="btn primary" id="btnRqClose" type="button">닫기</button></div></div>
+</div>
+<div class="modal" id="syncView" hidden>
+  <div class="modal-box qrbox"><p><b>사용 기록 QR</b> <span id="syncIdx"></span></p>
+    <canvas id="syncCanvas" width="420" height="420" aria-label="사용 기록 QR"></canvas>
+    <p class="sub">다른 기기의 관리자 모드 → 설정 → [QR로 가져오기]로 비춰 주세요.</p>
+    <div class="modal-btns"><button class="btn" id="btnSyncPrev" type="button">◀</button><button class="btn" id="btnSyncNext" type="button">▶</button><button class="btn primary" id="btnSyncClose" type="button">닫기</button></div></div>
+</div>
+<div class="updbar" id="updBar" hidden><span>새 버전이 있어요.</span><button class="btn primary" id="btnUpdReload" type="button">새로고침</button><button class="btn" id="btnUpdLater" type="button">나중에</button></div>
 <div class="toast" id="toast" hidden></div>
 <canvas id="work" hidden></canvas>
 <script type="module" src="js/app.js"></script>

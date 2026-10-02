@@ -68,7 +68,8 @@ export const REJECT_MSG = {
 
 // ---------- 이 기기의 기록 (localStorage, 개인정보 없음: 코드 ID·시각만) ----------
 const K = { used: 'pcqr.used', issued: 'pcqr.issued', revoked: 'pcqr.revoked', active: 'pcqr.active', pass: 'pcqr.pass', lock: 'pcqr.lock', pw: 'pcqr.pw', seen: 'pcqr.seen', clock: 'pcqr.clock', cfg: 'pcqr.cfg' };
-export const DEFAULT_CFG = { operator: '롯데렌터카 김해공항', contact: '', wake: true };
+export const DEFAULT_CFG = { operator: 'H.O.W', contact: '', wake: true };
+export const OLD_DEFAULT_OPERATORS = ['롯데렌터카 김해공항']; // 예전 기본값을 그대로 둔 기기는 새 기본값으로 바꿈
 export const STORAGE_PREFIX = 'pcqr.';
 export function createStore(backend = globalThis.localStorage) {
   const get = (k, d) => { try { const v = backend.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } };
@@ -85,7 +86,7 @@ export function createStore(backend = globalThis.localStorage) {
     mergeUsed(map, src = 'sync') { const u = get(K.used, {}); let n = 0; for (const [id, v] of Object.entries(map || {})) if (!u[id]) { u[id] = { at: +v?.at || Date.now(), src: v?.src || src }; n++; } set(K.used, u); return n; },
     mergeRevoked(map) { const r = get(K.revoked, {}); let n = 0; for (const [id, at] of Object.entries(map || {})) if (!r[id]) { r[id] = +at || Date.now(); n++; } set(K.revoked, r); const all = get(K.issued, []); for (const it of all) if (r[it.id] && !it.revoked) it.revoked = r[it.id]; set(K.issued, all); return n; },
     mergeIssued(list) { const all = get(K.issued, []); const have = new Set(all.map((x) => x.id)); const add = (list || []).filter((x) => x && typeof x.id === 'string' && !have.has(x.id)); set(K.issued, [...add, ...all].sort((a, b) => (b.at || 0) - (a.at || 0))); return add.length; },
-    cfg: () => ({ ...DEFAULT_CFG, ...get(K.cfg, {}) }), setCfg(v) { set(K.cfg, { ...get(K.cfg, {}), ...v }); },
+    cfg() { const c = get(K.cfg, {}); if (OLD_DEFAULT_OPERATORS.includes(c.operator)) { c.operator = DEFAULT_CFG.operator; set(K.cfg, c); } return { ...DEFAULT_CFG, ...c }; }, setCfg(v) { set(K.cfg, { ...get(K.cfg, {}), ...v }); },
     // 시계 확인: 지금까지 본 가장 늦은 시각 기억 (시계를 뒤로 돌려 만료·잠금을 피하지 못하게)
     seen: () => +get(K.seen, 0) || 0,
     touchSeen(now = Date.now()) { const s = +get(K.seen, 0) || 0; if (now > s) set(K.seen, now); if (s && now < s - CLOCK_BACK_MS) { const w = { kind: 'back', by: s - now, at: now }; set(K.clock, w); return w; } return null; },

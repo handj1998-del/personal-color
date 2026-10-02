@@ -1,5 +1,5 @@
 // 오프라인 캐시 (외부 요청 없음). 버전을 올리면 새 파일로 교체됨
-const VERSION = 'pc-v1.4.0';
+const VERSION = 'pc-v1.4.1';
 const CORE = [
   './', 'index.html', 'app.css', 'manifest.webmanifest', 'icons/icon.svg',
   'js/app.js', 'js/color.js', 'js/analyzer.js', 'js/seasons.js', 'js/face.js', 'js/card.js', 'js/style.js', 'js/ticket.js', 'js/qr.js', 'js/admin.js', 'js/qrcard.js', 'js/share.js', 'vendor/qr/jsqr.mjs', 'vendor/qr/qrcode.mjs',

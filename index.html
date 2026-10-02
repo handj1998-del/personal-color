@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; img-src 'self' blob: data:; media-src 'self' blob: mediastream:; style-src 'self' 'unsafe-inline'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#2b2340">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="퍼스널컬러">
+<title>퍼스널컬러 진단</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body data-screen="home">
+<header class="topbar">
+  <div class="brand"><span class="logo" aria-hidden="true"></span>퍼스널컬러 진단</div>
+  <div class="steps" id="steps" aria-hidden="true"></div>
+  <button class="btn ghost" id="btnReset" type="button">⟲ 처음으로</button>
+</header>
+
+<main id="app">
+  <!-- 카메라 무대: 보정/촬영/드레이핑 화면에서 사용 -->
+  <section class="stage" id="stage" aria-label="카메라 화면">
+    <video id="video" playsinline muted autoplay></video>
+    <svg id="overlay" class="overlay" preserveAspectRatio="xMidYMid slice" viewBox="0 0 1280 720" aria-hidden="true">
+      <defs>
+        <linearGradient id="gGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a6a1f"/><stop offset=".25" stop-color="#f6dc8a"/><stop offset=".5" stop-color="#c79a35"/><stop offset=".75" stop-color="#ffe9a8"/><stop offset="1" stop-color="#9c7624"/></linearGradient>
+        <linearGradient id="gSilver" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6f747c"/><stop offset=".25" stop-color="#eef1f5"/><stop offset=".5" stop-color="#a7adb6"/><stop offset=".75" stop-color="#f7f9fb"/><stop offset="1" stop-color="#7b8189"/></linearGradient>
+        <mask id="ovalMask"><rect x="0" y="0" width="100%" height="100%" fill="white"/><ellipse id="ovalHole" fill="black"/></mask>
+        <clipPath id="clipL"><rect id="clipLRect"/></clipPath>
+        <clipPath id="clipR"><rect id="clipRRect"/></clipPath>
+      </defs>
+      <g id="layerOval">
+        <rect class="dim" x="-2000" y="-2000" width="6000" height="6000" mask="url(#ovalMask)"/>
+        <ellipse id="ovalLine" class="ovalline"/>
+      </g>
+      <g id="layerPaper"><rect id="paperRect" class="paperline"/></g>
+      <g id="layerDrape">
+        <path id="drapeL" clip-path="url(#clipL)"/>
+        <path id="drapeR" clip-path="url(#clipR)"/>
+        <line id="drapeDivider" class="divider"/>
+        <text id="drapeTagL" class="drapetag"></text>
+        <text id="drapeTagR" class="drapetag"></text>
+      </g>
+    </svg>
+    <div class="stage-msg" id="stageMsg"></div>
+    <div class="meter" id="meter"></div>
+    <div class="stage-tools">
+      <button class="btn round" id="btnSwitch" type="button" title="카메라 전환" aria-label="카메라 전환">⇄</button>
+    </div>
+  </section>
+
+  <section class="panel" id="panel">
+    <!-- 홈 -->
+    <div class="screen" data-for="home">
+      <h1>퍼스널컬러 진단</h1>
+      <p class="lead">카메라로 피부·눈동자·머리카락 색을 측정해 사계절 8타입 중 어울리는 타입을 추정하고, 드레이핑으로 직접 비교해 확인해요.</p>
+      <div class="bigbtns">
+        <button class="btn primary xl" id="btnStart" type="button">진단 시작</button>
+        <button class="btn xl" id="btnDrapeOnly" type="button">드레이핑만 하기</button>
+      </div>
+      <ul class="notes">
+        <li>사진은 저장·전송하지 않고 이 기기 안에서만 분석해요.</li>
+        <li>인터넷 연결 없이도 동작해요.</li>
+      </ul>
+    </div>
+
+    <!-- 동의 -->
+    <div class="screen" data-for="consent">
+      <h2>촬영 전 안내</h2>
+      <ul class="consent-list">
+        <li><b>카메라 사용</b> 얼굴 색을 측정하기 위해 카메라를 켭니다.</li>
+        <li><b>저장·전송 없음</b> 얼굴 영상과 사진은 저장하거나 서버로 보내지 않아요. 분석이 끝나면 바로 지워지고 카메라도 꺼져요.</li>
+        <li><b>결과 이미지</b> 결과 카드에는 색과 글자만 들어가고 얼굴 사진은 들어가지 않아요.</li>
+        <li><b>추정 결과</b> 조명과 카메라에 따라 달라질 수 있는 참고용 결과예요. 의학적·전문 진단이 아니에요.</li>
+      </ul>
+      <label class="check"><input type="checkbox" id="chkConsent"> 위 안내를 확인했고 촬영에 동의합니다.</label>
+      <div class="bigbtns">
+        <button class="btn primary xl" id="btnConsentCam" type="button" disabled>동의하고 카메라 켜기</button>
+        <button class="btn xl" id="btnConsentPhoto" type="button" disabled>사진 파일로 진단</button>
+        <button class="btn ghost" id="btnConsentNo" type="button">동의하지 않음</button>
+      </div>
+      <input type="file" id="fileInput" accept="image/*" hidden>
+    </div>
+
+    <!-- 보정 -->
+    <div class="screen" data-for="calib">
+      <h2>1. 조명 확인 · 흰 종이 보정</h2>
+      <ul class="tips">
+        <li>☀️ 창가의 <b>자연광</b>에서, 얼굴 정면으로 빛이 오게 해 주세요. 직사광선·노란 조명은 피해 주세요.</li>
+        <li>📄 <b>흰 종이(A4)</b>를 얼굴 옆 같은 빛 아래에서 사각형 안에 가득 차게 비추고 <b>보정하기</b>를 눌러 주세요.</li>
+        <li>컨러 렌즈·색 안경·진한 메이크업은 결과에 영향을 줄 수 있어요.</li>
+      </ul>
+      <div class="status" id="calibStatus">보정 안 함</div>
+      <div class="bigbtns">
+        <button class="btn primary xl" id="btnCalib" type="button">흰 종이로 보정하기</button>
+        <button class="btn xl" id="btnCalibNext" type="button">보정 없이 다음</button>
+        <button class="btn ghost" id="btnCalibClear" type="button" hidden>보정 해제</button>
+      </div>
+    </div>
+
+    <!-- 촬영 -->
+    <div class="screen" data-for="capture">
+      <h2>2. 얼굴 촬영</h2>
+      <ul class="tips">
+        <li>얼굴을 <b>타원 안</b>에 맞추고 정면을 봐 주세요.</li>
+        <li>앞머리는 넘기고, 안경은 벗어 주세요.</li>
+      </ul>
+      <div class="status" id="captureCalib"></div>
+      <div class="bigbtns">
+        <button class="btn primary xl" id="btnCapture" type="button">촬영하고 분석</button>
+        <button class="btn xl" id="btnUpload" type="button">사진 파일로 진단</button>
+        <button class="btn ghost" id="btnBackCalib" type="button">← 보정 다시 하기</button>
+      </div>
+    </div>
+
+    <!-- 분석 중 -->
+    <div class="screen" data-for="analyzing">
+      <div class="spinner" aria-hidden="true"></div>
+      <h2 id="analyzingMsg">분석 중이에요…</h2>
+    </div>
+
+    <!-- 자동 분석 결과 -->
+    <div class="screen" data-for="auto">
+      <h2>자동 분석 결과 <span class="chip" id="autoConf"></span></h2>
+      <div id="autoBody"></div>
+      <div class="bigbtns">
+        <button class="btn primary xl" id="btnToDrape" type="button">드레이핑으로 확인하기</button>
+        <button class="btn xl" id="btnToResult" type="button">결과 카드 보기</button>
+        <button class="btn ghost" id="btnRetake" type="button">다시 촬영</button>
+      </div>
+    </div>
+
+    <!-- 드레이핑 -->
+    <div class="screen" data-for="drape">
+      <div class="tabs" role="tablist">
+        <button class="tab" id="tabRounds" type="button" role="tab">비교 진단</button>
+        <button class="tab" id="tabBrowse" type="button" role="tab">팔레트 둘러보기</button>
+      </div>
+      <div id="drapeRoundsBox">
+        <div class="progress" id="roundProg"></div>
+        <h2 id="roundTitle"></h2>
+        <p class="lead" id="roundQ"></p>
+        <div class="choice">
+          <button class="btn xl choiceA" id="btnPickL" type="button"></button>
+          <button class="btn xl choiceB" id="btnPickR" type="button"></button>
+        </div>
+        <button class="btn" id="btnPickSame" type="button">비슷해요 / 잘 모르겠어요</button>
+        <div id="roundDone" hidden>
+          <p class="lead">비교가 끝났어요. 선택한 결과를 자동 분석과 합쳐서 최종 결과를 보여 드려요.</p>
+        </div>
+      </div>
+      <div id="drapeBrowseBox" hidden>
+        <div class="selrow">
+          <label>왼쪽 <select id="selL"></select></label>
+          <label>오른쪽 <select id="selR"></select></label>
+        </div>
+        <div class="navrow">
+          <button class="btn xl" id="btnPrev" type="button" aria-label="이전 색">◀</button>
+          <div class="colorname" id="browseName"></div>
+          <button class="btn xl" id="btnNext" type="button" aria-label="다음 색">▶</button>
+        </div>
+        <p class="hint">화면을 좌우로 밀어도 색이 바뀌어요.</p>
+        <div class="choice">
+          <button class="btn xl" id="btnBrowseL" type="button">왼쪽이 더 좋아요</button>
+          <button class="btn xl" id="btnBrowseR" type="button">오른쪽이 더 좋아요</button>
+        </div>
+      </div>
+      <div class="votes" id="voteSummary"></div>
+      <div class="bigbtns">
+        <button class="btn primary xl" id="btnDrapeDone" type="button">최종 결과 보기</button>
+      </div>
+    </div>
+
+    <!-- 최종 결과 -->
+    <div class="screen" data-for="result">
+      <div id="resultCard" class="card"></div>
+      <div class="bigbtns row">
+        <button class="btn primary xl" id="btnSavePng" type="button">결과 이미지 저장 (PNG)</button>
+        <button class="btn xl" id="btnBackDrape" type="button">드레이핑 다시 보기</button>
+        <button class="btn danger xl" id="btnNextCustomer" type="button">다음 고객 (초기화)</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-box">
+    <p id="modalMsg"></p>
+    <div class="modal-btns"><button class="btn" id="modalNo" type="button">취소</button><button class="btn primary" id="modalYes" type="button">확인</button></div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<canvas id="work" hidden></canvas>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

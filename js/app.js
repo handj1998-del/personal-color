@@ -588,6 +588,14 @@ if (!SHARED_BOOT && 'serviceWorker' in navigator && (location.protocol === 'http
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) $('updBar').hidden = false; });
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').then((reg) => { setInterval(() => { if (S.screen === 'home') reg.update().catch(() => {}); }, 30 * 60 * 1000); }).catch(() => {}));
 }
+// 첫 화면 아래 버전 표시: 실행 중인 서비스 워커에 물어봄 (없으면 sw.js 파일의 값). 버전 값은 sw.js 한 곳에만 있음
+async function appVersion() {
+  const ctl = navigator.serviceWorker?.controller;
+  if (ctl) { const v = await new Promise((res) => { const ch = new MessageChannel(); const t = setTimeout(() => res(null), 2000); ch.port1.onmessage = (e) => { clearTimeout(t); res(e.data); }; ctl.postMessage({ type: 'version' }, [ch.port2]); }); if (v?.version) return v; }
+  try { const s = await (await fetch('sw.js', { cache: 'no-store' })).text(); const m = /VERSION = '([^']+)', BUILD_DATE = '([^']+)'/.exec(s); if (m) return { version: m[1], date: m[2] }; } catch {}
+  return null;
+}
+if (!SHARED_BOOT) appVersion().then((v) => { if (v) { const n = v.version.replace(/^pc-/, ''); $('appVer').textContent = `버전 ${n} · ${v.date}`; $('appVer').dataset.version = v.version; } });
 $('btnUpdReload').onclick = () => location.reload(); // 진행 중이던 진단은 첫 화면의 [이어하기]로 계속
 $('btnUpdLater').onclick = () => { $('updBar').hidden = true; };
 if (!openShared()) go('home');

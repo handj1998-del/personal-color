@@ -1,5 +1,6 @@
 // 오프라인 캐시 (외부 요청 없음). 버전을 올리면 새 파일로 교체됨
-const VERSION = 'pc-v1.4.2';
+// 버전 정보는 여기 한 곳에만 둠 (첫 화면 아래 표시도 이 값을 읽음)
+const VERSION = 'pc-v1.4.3', BUILD_DATE = '2026-10-03';
 const CORE = [
   './', 'index.html', 'app.css', 'manifest.webmanifest', 'icons/icon.svg',
   'js/app.js', 'js/color.js', 'js/analyzer.js', 'js/seasons.js', 'js/face.js', 'js/card.js', 'js/style.js', 'js/ticket.js', 'js/qr.js', 'js/admin.js', 'js/qrcard.js', 'js/share.js', 'vendor/qr/jsqr.mjs', 'vendor/qr/qrcode.mjs',
@@ -22,9 +23,11 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
+// 첫 화면의 버전 표시: 지금 실행 중인 서비스 워커(=앱 파일 캐시)의 버전을 알려 줌
+self.addEventListener('message', (e) => { if (e.data?.type === 'version') e.ports?.[0]?.postMessage({ version: VERSION, date: BUILD_DATE }); });
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== self.location.origin) return;
+  if (e.request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.endsWith('/sw.js')) return;
   e.respondWith(caches.open(VERSION).then(async (c) => {
     const hit = await c.match(e.request, { ignoreSearch: true });
     if (hit) return hit;

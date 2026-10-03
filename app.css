@@ -214,6 +214,7 @@ body[data-screen="ticket"].has-stage .stage, body[data-screen="adminScan"].has-s
 @media (min-width:700px) { .issuerow { grid-template-columns:1fr 1.3fr 1fr; } .issuerow #btnIssue { grid-column:auto; } }
 @media (max-height:760px) { .cardpreview { max-width:min(440px, 68%); } .cardnav { margin:6px 0 4px; } .cardnav .btn { min-height:44px; } [data-for="admin"] .tab { min-height:44px; } .adminhead h2 { font-size:20px; margin-bottom:4px; } }
 .screen[data-for="home"] { position:relative; }
+.appver { margin:14px 0 0; text-align:center; font-size:12px; color:#a59cb3; letter-spacing:.02em; } .appver:empty { display:none; }
 .screen[data-for="home"] > .linkbtn { position:absolute; top:2px; right:2px; margin:0; min-height:40px; z-index:2; }
 /* ---------- v1.4 ---------- */
 .iconbtn { min-width:48px; min-height:48px !important; padding:0 !important; font-size:22px !important; margin-left:auto; }

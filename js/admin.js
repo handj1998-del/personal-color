@@ -128,7 +128,7 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
   }
   // ---------- 설정: 운영 정보 · 백업 · 기기 간 기록 · 기기 설정 ----------
   async function renderSettings() {
-    const c = store.cfg(); $('cfgOp').value = c.operator || ''; $('cfgCt').value = c.contact || ''; $('cfgWake').checked = c.wake !== false;
+    const c = store.cfg(); $('cfgOp').value = c.operator || ''; $('cfgCt').value = c.contact || ''; $('cfgWake').checked = c.wake !== false; $('cfgFaceDbg').checked = !!c.faceDebug;
     $('btnInstall').hidden = !A.installEvt;
     let ps = '저장소 보호: 이 브라우저는 지원하지 않아요.';
     try { if (navigator.storage?.persisted) ps = (await navigator.storage.persisted()) ? '저장소 보호: 켜짐 ✅ (브라우저가 기록을 임의로 지우지 않아요)' : '저장소 보호: 꺼짐 — [저장소 보호 요청]을 누르거나 홈 화면에 추가해 주세요.'; } catch {}
@@ -182,6 +182,7 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
     if (!(await ask(`기기 시계가 지금 맞나요? (${now}) 맞다면 이 시각을 새 기준으로 정해요. 기록이 남아요.`))) return;
     store.resetSeen(); toast('시계 기준을 지금 시각으로 다시 정했어요.', 4000); render();
   };
+  $('cfgFaceDbg').onchange = (e) => { store.setCfg({ faceDebug: e.target.checked }); toast(e.target.checked ? '결과 화면에 얼굴형 측정값을 보여 줘요 (직원 확인용).' : '얼굴형 측정값을 숨겼어요.'); };
   $('btnCfgSave').onclick = saveCfg; $('cfgWake').onchange = (e) => { store.setCfg({ wake: e.target.checked }); onCfg(); toast(e.target.checked ? '화면 꺼짐 방지를 켰어요.' : '화면 꺼짐 방지를 껐어요.'); };
   $('btnBackup').onclick = () => backup('backup'); $('btnUsedExport').onclick = () => backup('used');
   $('btnCsv').onclick = () => { download(new Blob([toCsv(store)], { type: 'text/csv;charset=utf-8' }), `진단권_목록_${stamp()}.csv`); toast('CSV 파일을 저장했어요 (엑셀에서 열 수 있어요).'); };

@@ -10,7 +10,7 @@ import { encodeResult, decodeResult, RESULT_RE } from './share.js';
 const SHARED_BOOT = RESULT_RE.test(location.hash);
 import { initDecoder, decodeVideo, MAX_SIDE, MAX_SIDE_SYNC } from './qr.js';
 import { initAdmin } from './admin.js';
-import { faceMetrics, classifyFaceShape, FACE_SHAPES, FACE_ORDER, GLASS_SHAPES, LIPS, FRAMES, glassesSvg, browSvg } from './style.js';
+import { faceMetrics, classifyFaceShape, FACE_SHAPES, FACE_ORDER, GLASS_SHAPES, LIPS, FRAMES, glassesSvg, browSvg, HAIR_COLORS, HAIR_STYLES, HAIR_REC, HAIR_GENDERS, hairSvg } from './style.js';
 
 const $ = (id) => document.getElementById(id);
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -19,7 +19,7 @@ const SCAN_SCREENS = new Set(['ticket', 'adminScan']);
 const NO_IDLE = new Set(['home', 'shared']); // 고객 무동작 자동 초기화 제외 화면 (관리자는 별도 자동 로그아웃)
 const STEP_LABELS = [['consent', '동의'], ['ticket', '진단권'], ['calib', '보정'], ['capture', '촬영'], ['auto', '분석'], ['drape', '드레이핑'], ['result', '결과']];
 
-const fresh = () => ({ screen: 'home', after: null, resume: false, ticket: null, wb: null, auto: null, votes: [], roundIdx: 0, rounds: null, browse: { L: 'spring_light', R: 'summer_light', i: 0 }, drapeTab: 'rounds', final: null, drapeOnly: false, faceShape: null, resTab: 'color' });
+const fresh = () => ({ screen: 'home', after: null, resume: false, ticket: null, wb: null, auto: null, votes: [], roundIdx: 0, rounds: null, browse: { L: 'spring_light', R: 'summer_light', i: 0 }, drapeTab: 'rounds', final: null, drapeOnly: false, faceShape: null, resTab: 'color', hairGender: 'f' });
 let S = fresh();
 let stream = null, facing = 'user', streamFacing = null, meterTimer = null, cameraBusy = false, seq = 0;
 // QR 확인 화면은 뒤 카메라를 먼저 사용 (⇄로 바꾸면 이 기기에서 기억)
@@ -434,7 +434,7 @@ function buildFinal() {
   renderResult();
 }
 const sw = (c, cls = '') => `<div class="swatch ${cls}"><i style="background:${c.hex}"></i><span>${c.name}</span></div>`;
-const RTABS = [['color', '컬러'], ['lip', '립'], ['glasses', '안경'], ['brow', '눈썹']];
+const RTABS = [['color', '컬러'], ['lip', '립'], ['glasses', '안경'], ['brow', '눈썹'], ['hair', '헤어']];
 function faceId() { return S.faceShape || S.final?.face?.id || null; }
 function needFace() { return `<p class="warn pick">얼굴형을 위에서 선택하면 맞춤 추천이 나와요.</p>`; }
 function resultPane(tab) {
@@ -452,6 +452,14 @@ function resultPane(tab) {
       ${F ? `<div class="glist">${F.glasses.map((g) => `<div class="gitem" data-g="${g}">${glassesSvg(g)}<span>${GLASS_SHAPES[g]}</span></div>`).join('')}</div>
       <p class="tip">${F.glassesTip} <span class="sub">피하면 좋은 모양: ${F.glassesAvoid}</span></p>` : needFace()}`;
   }
+  if (tab === 'hair') {
+    const HC = HAIR_COLORS[r.id], g = S.hairGender === 'm' ? 'm' : 'f', H = F ? HAIR_REC[fid][g] : null, hc = HC.best[1].hex;
+    return `<h3>💇 헤어 컬러 추천 <small>${s.name}</small></h3><div class="palette hairc">${HC.best.map((c) => sw(c, 'hairc')).join('')}</div>
+      <p class="tip">${HC.tip} <span class="sub">피하면 좋은 색: ${HC.avoid.map((c) => c.name).join(', ')}</span></p>
+      <div class="hairhead"><h3>헤어스타일 추천 <small>${F ? F.name : ''}</small></h3><div class="seg" role="group" aria-label="스타일 기준">${Object.entries(HAIR_GENDERS).map(([k, l]) => `<button type="button" class="segbtn ${g === k ? 'on' : ''}" data-hg="${k}" aria-pressed="${g === k}">${l}</button>`).join('')}</div></div>
+      ${H ? `<div class="hlist">${H.styles.map((id) => `<div class="hitem" data-h="${id}">${hairSvg(id, hc)}<b>${HAIR_STYLES[id].name}</b><span class="hlen">${HAIR_STYLES[id].len}</span><span class="hdesc">${HAIR_STYLES[id].desc}</span></div>`).join('')}</div>
+      <p class="tip">${H.tip} <span class="sub">피하면 좋은 스타일: ${H.avoid}</span></p>` : needFace()}`;
+  }
   if (tab === 'brow') {
     const browColor = s.tone === '웜' ? '#6b4a32' : '#4d4646';
     const colorTip = s.tone === '웜' ? '눈썹 색은 브라운·카키 브라운처럼 따뜻한 갈색이 자연스러워요.' : '눈썹 색은 그레이 브라운·애쉬 브라운처럼 차가운 갈색이 자연스러워요.';
@@ -464,12 +472,18 @@ function resultPane(tab) {
     <h3>피하면 좋은 컬러</h3><div class="palette avoid">${s.avoid.map((c) => sw(c, 'sm')).join('')}</div>
     <div class="tipsgrid"><div><h4>💄 메이크업</h4><p>${s.makeup}</p></div><div><h4>💇 헤어</h4><p>${s.hair}</p></div><div><h4>💍 액세서리</h4><p>${s.acc}</p></div></div>`;
 }
+// 관리자 설정 '얼굴형 측정값 보기' (직원 확인용): 측정 비율·표준점수·후보 확률
+function faceDebug() {
+  const f = S.final?.face; if (S.screen === 'shared' || !store.cfg().faceDebug || !f?.metrics) return '';
+  const m = f.metrics, z = f.z || {}, sg = (v) => (v >= 0 ? '+' : '') + v.toFixed(1);
+  return `<p class="dbg" id="faceDbg">측정값 · 길이/광대 ${m.ratio.toFixed(3)} (z ${sg(z.ratio ?? 0)}) · 이마/광대 ${m.fore.toFixed(3)} (z ${sg(z.fore ?? 0)}) · 턱/광대 ${m.jaw.toFixed(3)} (z ${sg(z.jaw ?? 0)}) · 턱끝 ${m.chin.toFixed(1)}° (z ${sg(z.chin ?? 0)}) · 좌우 돌림 ${m.yaw.toFixed(2)} · 숙임 ${Number.isFinite(m.pitch) ? m.pitch.toFixed(0) + '°' : '-'}<br>후보 ${f.probs.slice(0, 3).map((x) => `${FACE_SHAPES[x.id].name} ${Math.round(x.p * 100)}%`).join(' / ')}</p>`;
+}
 function renderResult() {
   const r = S.final, s = r.season, fid = faceId(), auto = r.face, box = S.screen === 'shared' ? $('sharedCard') : $('resultCard');
   const opts = (fid ? '' : '<option value="" selected>선택해 주세요</option>') + FACE_ORDER.map((id) => `<option value="${id}" ${id === fid ? 'selected' : ''}>${FACE_SHAPES[id].name}</option>`).join('');
   const fnote = S.faceShape && auto && S.faceShape !== auto.id ? `직접 선택 (자동 추정: ${FACE_SHAPES[auto.id].name})`
     : S.faceShape && !auto ? '직접 선택'
-    : auto ? `자동 추정 · ${auto.label} — ${auto.note}` : r.sharedFace ? '매장에서 고른 얼굴형이에요.' : S.screen === 'shared' ? '얼굴형을 고르면 안경·눈썹 추천이 나와요.' : '얼굴 자동 인식이 없어요. 고객 얼굴을 보고 직접 골라 주세요.';
+    : auto ? `자동 추정 · ${auto.label} — ${auto.note}` : r.sharedFace ? '매장에서 고른 얼굴형이에요.' : S.screen === 'shared' ? '얼굴형을 고르면 안경·눈썹·헤어스타일 추천이 나와요.' : '얼굴 자동 인식이 없어요. 고객 얼굴을 보고 직접 골라 주세요.';
   box.innerHTML = `
     <div class="card-top" style="background:linear-gradient(90deg,${s.best.slice(0, 6).map((c) => c.hex).join(',')})"></div>
     <div class="card-head"><small>나의 퍼스널컬러</small><h1 id="resName">${s.name}</h1><p class="kw">${s.short} · ${s.keywords.join(' · ')}</p>
@@ -477,17 +491,18 @@ function renderResult() {
     <div class="facerow"><label for="selFace">얼굴형</label><select id="selFace">${opts}</select><span class="fnote" id="faceNote">${fnote}</span></div>
     <div class="rtabs" role="tablist">${RTABS.map(([k, l]) => `<button type="button" role="tab" class="rtab ${S.resTab === k ? 'on' : ''}" data-rtab="${k}" aria-selected="${S.resTab === k}">${l}</button>`).join('')}</div>
     <div class="rpane" id="rpane" data-tab="${S.resTab}">${resultPane(S.resTab)}</div>
+    ${faceDebug()}
     ${r.changed && S.auto ? `<p class="note">드레이핑 선택을 반영해 자동 분석(${SEASONS[S.auto.cls.top[0].id].name})과 다른 결과가 나왔어요.</p>` : ''}
-    <p class="note">카메라와 조명에 따라 달라질 수 있는 추정 결과이고, 추천은 일반적인 스타일링 가이드에 따른 제안이에요. 실제 옷·안경·화장품을 대 보며 함께 확인해 주세요.</p>`;
+    <p class="note">카메라와 조명에 따라 달라질 수 있는 추정 결과이고, 추천은 일반적인 스타일링 가이드에 따른 제안이에요. 실제 옷·안경·화장품·헤어를 대 보며 함께 확인해 주세요.</p>`;
 }
 for (const id of ['resultCard', 'sharedCard']) {
-  $(id).addEventListener('click', (e) => { const t = e.target.closest('[data-rtab]'); if (!t || !S.final) return; S.resTab = t.dataset.rtab; renderResult(); });
+  $(id).addEventListener('click', (e) => { if (!S.final) return; const hg = e.target.closest('[data-hg]'); if (hg) { S.hairGender = hg.dataset.hg; renderResult(); return; } const t = e.target.closest('[data-rtab]'); if (!t) return; S.resTab = t.dataset.rtab; renderResult(); });
   $(id).addEventListener('change', (e) => { if (e.target.id !== 'selFace' || !S.final) return; S.faceShape = e.target.value || null; renderResult(); });
 }
 $('btnSharedPng').onclick = () => $('btnSavePng').onclick();
 $('btnSavePng').onclick = async () => {
   if (!S.final) return;
-  const cv = document.createElement('canvas'); renderCardCanvas(cv, { ...S.final, faceId: faceId() });
+  const cv = document.createElement('canvas'); renderCardCanvas(cv, { ...S.final, faceId: faceId(), hairGender: S.hairGender });
   const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
   cv.width = cv.height = 1;
   const name = `퍼스널컬러_${S.final.season.short}_${S.final.date.replaceAll('.', '')}.png`;
@@ -500,7 +515,7 @@ $('btnSavePng').onclick = async () => {
 };
 
 // ---------- 결과를 고객 휴대폰으로 (서버 없이: 주소의 # 뒤에 결과 코드만 담음, #은 서버로 전송되지 않음) ----------
-const resultUrl = () => location.origin + location.pathname + '#r=' + encodeResult(S.final, faceId());
+const resultUrl = () => location.origin + location.pathname + '#r=' + encodeResult(S.final, faceId(), S.hairGender);
 $('btnResultQr').onclick = () => {
   if (!S.final) return;
   const cv = $('rqCanvas'), ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height); drawQr(ctx, resultUrl(), 0, 0, cv.width, 3);
@@ -512,7 +527,7 @@ function openShared() {
   const f = decodeResult(m[1]);
   S = fresh(); S.screen = 'shared';
   if (!f) { go('home'); toast('결과 주소가 올바르지 않아요.', 4500); return true; }
-  S.final = f; S.faceShape = f.sharedFace; wake(); go('shared').then(renderResult); return true;
+  S.final = f; S.faceShape = f.sharedFace; S.hairGender = f.sharedGender || 'f'; wake(); go('shared').then(renderResult); return true;
 }
 window.addEventListener('hashchange', () => { if (location.hash.startsWith('#r=')) openShared(); });
 

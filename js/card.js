@@ -1,6 +1,6 @@
 // 결과 카드 PNG 렌더러 (색과 글자만, 얼굴 사진 없음)
 import { hexToRgb } from './color.js';
-import { FACE_SHAPES, GLASS_SHAPES, LIPS, FRAMES, BROW_PATHS, glassesPaths } from './style.js';
+import { FACE_SHAPES, GLASS_SHAPES, LIPS, FRAMES, BROW_PATHS, glassesPaths, HAIR_COLORS, HAIR_STYLES, HAIR_REC, HAIR_GENDERS } from './style.js';
 const FONT = "'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR','Noto Sans CJK KR','Nanum Gothic',sans-serif";
 const textColor = (hex) => { const [r, g, b] = hexToRgb(hex); return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#2a2433' : '#ffffff'; };
 
@@ -88,6 +88,22 @@ export function renderCardCanvas(canvas, r) {
       for (const ln of wrap(ctx, F.browTip, W - 2 * P - 320)) { y += 42; if (!measureOnly) { ctx.fillStyle = '#3d3547'; ctx.fillText(ln, P + 320, y); } }
       y = Math.max(y, by + 100);
     } else { head('안경테 모양 · 눈썹 모양'); para('얼굴형을 선택하면 맞춤 추천을 함께 저장해요.', 28, '#5b5266'); }
+    // ---------- v1.5 헤어 ----------
+    const HC = HAIR_COLORS[r.id], g = r.hairGender === 'm' ? 'm' : 'f';
+    head('헤어 컬러'); chips(HC.best); para(`${HC.tip} 피하면 좋은 색: ${HC.avoid.map((c) => c.name).join(', ')}`, 28, '#5b5266');
+    if (F) {
+      const H = HAIR_REC[r.faceId][g]; head(`헤어스타일 · ${F.name} · ${HAIR_GENDERS[g]}`);
+      y += 20; const bw = (W - 2 * P) / 3, k = 2.2;
+      H.styles.forEach((id, i) => { if (measureOnly) return; const hs = HAIR_STYLES[id], x = P + i * bw + (bw - 100 * k) / 2;
+        ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
+        ctx.fillStyle = '#d9cfc6'; ctx.fill(new Path2D('M20 110 Q50 92 80 110 Z')); ctx.fillStyle = '#ecd2bf'; ctx.fillRect(43, 80, 14, 20);
+        ctx.fillStyle = HC.best[1].hex; ctx.fill(new Path2D(hs.back));
+        ctx.fillStyle = '#f3dccb'; ctx.beginPath(); ctx.ellipse(50, 58, 22, 28, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#d8bba6'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = HC.best[1].hex; ctx.fill(new Path2D(hs.front)); ctx.restore();
+        ctx.textAlign = 'center'; ctx.fillStyle = '#2a2433'; ctx.font = `700 28px ${FONT}`; ctx.fillText(hs.name, P + i * bw + bw / 2, y + 110 * k + 40);
+        ctx.fillStyle = '#5b3f8f'; ctx.font = `600 24px ${FONT}`; ctx.fillText(hs.len, P + i * bw + bw / 2, y + 110 * k + 74); ctx.textAlign = 'left'; });
+      y += 110 * k + 90; para(`${H.tip} 피하면 좋은 스타일: ${H.avoid}`, 28, '#5b5266');
+    } else { head('헤어스타일'); para('얼굴형을 선택하면 맞춤 헤어스타일 추천을 함께 저장해요.', 28, '#5b5266'); }
     y += 70; ctx.font = `500 26px ${FONT}`;
     const foot = [`두 번째 후보: ${r.second.name} · 신뢰도 ${r.conf.label} · ${r.method}`, `${r.date} · 카메라·조명에 따라 달라질 수 있는 추정이며, 추천은 스타일링 제안이에요.`];
     for (const ln of foot) { if (!measureOnly) { ctx.fillStyle = '#8a8094'; ctx.fillText(ln, P, y); } y += 40; }

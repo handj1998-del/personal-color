@@ -1,6 +1,6 @@
 // 오프라인 캐시 (외부 요청 없음). 버전을 올리면 새 파일로 교체됨
 // 버전 정보는 여기 한 곳에만 둠 (첫 화면 아래 표시도 이 값을 읽음)
-const VERSION = 'pc-v1.5.0', BUILD_DATE = '2026-10-03';
+const VERSION = 'pc-v1.6.1', BUILD_DATE = '2026-10-03';
 const CORE = [
   './', 'index.html', 'app.css', 'manifest.webmanifest', 'icons/icon.svg',
   'js/app.js', 'js/color.js', 'js/analyzer.js', 'js/seasons.js', 'js/face.js', 'js/card.js', 'js/style.js', 'js/ticket.js', 'js/qr.js', 'js/admin.js', 'js/qrcard.js', 'js/share.js', 'vendor/qr/jsqr.mjs', 'vendor/qr/qrcode.mjs',
@@ -10,6 +10,7 @@ const OPTIONAL = [
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png',
   'vendor/mediapipe/vision_bundle.mjs', 'vendor/mediapipe/wasm/vision_wasm_internal.js', 'vendor/mediapipe/wasm/vision_wasm_internal.wasm',
   'vendor/mediapipe/wasm/vision_wasm_nosimd_internal.js',
+  'vendor/mediapipe/wasm/vision_wasm_nosimd_internal.wasm', // v1.6: SIMD 미지원 기기에서도 오프라인 얼굴 인식
   'models/face_landmarker.task',
 ];
 self.addEventListener('install', (e) => {

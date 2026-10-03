@@ -1,5 +1,5 @@
 // 관리자 모드: 로그인(해시·잠금·자동 로그아웃), 진단권 발급·카드/A4/PDF, 목록·취소, QR 없이 1회 허가, 비밀번호 변경
-import { makeToken, tryLogin, lockState, makePwRecord, statusOf, fmtDay, ADMIN_IDLE_MS, LOCK_FAILS, randomId, makeBackup, readBackup, applyBackup, makeSyncQrs, stats, toCsv } from './ticket.js';
+import { makeToken, tryLogin, lockState, makePwRecord, statusOf, fmtDay, ADMIN_IDLE_MS, LOCK_FAILS, randomId, makeBackup, readBackup, applyBackup, makeSyncQrs, stats, toCsv, loadSignKey, importSignKey, removeSignKey } from './ticket.js';
 import { renderCard, renderSheet, makePdf, SHEET, drawQr } from './qrcard.js';
 
 export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = () => {}, onCfg = () => {} }) {
@@ -35,20 +35,37 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
   function setTab(t) { A.tab = t; render(); }
   function render() {
     for (const [t, id, box] of [['issue', 'tabIssue', 'admIssue'], ['list', 'tabList', 'admList'], ['stats', 'tabStats', 'admStats'], ['settings', 'tabSettings', 'admSettings']]) { $(id).classList.toggle('on', A.tab === t); $(box).hidden = A.tab !== t; }
-    renderPass(); renderClock();
+    renderPass(); renderClock(); renderKey();
     if (A.tab === 'list') renderList();
     if (A.tab === 'stats') renderStats();
     if (A.tab === 'settings') renderSettings();
   }
+  // ---------- v1.6.1: 발급 키(개인키) ----------
+  // 진단권 발급·QR 없이 1회 허가는 비밀번호가 아니라 이 기기에 불러온 개인키가 있어야 됨
+  async function renderKey() {
+    const k = await loadSignKey();
+    $('keyStatus').textContent = k ? '발급 키: 이 기기에 있음 ✅ (내보낼 수 없는 형태로 저장됨)' : '발급 키: 없음 — 진단권 발급과 QR 없이 1회 허가를 하려면 개인키 파일을 불러와 주세요.';
+    $('keyStatus').className = 'status ' + (k ? 'ok' : 'bad'); $('btnKeyRemove').hidden = !k;
+    $('issueKeyWarn').hidden = !!k; $('btnIssue').disabled = !k; $('btnGrantPass').disabled = !k;
+  }
+  async function needKey() { const k = await loadSignKey(); if (!k) { toast('이 기기에 발급 키가 없어요. 설정 → [발급 키 불러오기]로 개인키 파일을 불러와 주세요.', 5000); } return k; }
+  async function keyFile(file) {
+    let text; try { text = await file.text(); } catch { return toast('파일을 읽을 수 없어요.'); }
+    const r = await importSignKey(text); text = null;
+    if (!r.ok) return toast(r.reason === 'mismatch' ? '이 앱의 공개키와 짝이 맞지 않는 키예요. 올바른 개인키 파일인지 확인해 주세요.' : '개인키 파일 형식이 아니에요 (PEM "PRIVATE KEY" 또는 JWK).', 5000);
+    toast('발급 키를 이 기기에 저장했어요. 원본 키 파일은 안전한 곳에 따로 보관하고, 이 기기에서는 지워도 돼요.', 6000); render();
+  }
+  async function keyRemove() { if (!(await ask('이 기기에서 발급 키를 지울까요? 지우면 키 파일을 다시 불러오기 전까지 진단권을 발급할 수 없어요.'))) return; await removeSignKey(); toast('발급 키를 지웠어요.'); render(); }
   // ---------- 발급 ----------
   async function issue() {
+    const key = await needKey(); if (!key) return;
     const q = Math.max(1, Math.min(50, parseInt($('issueQty').value, 10) || 0)); $('issueQty').value = q;
     const ev = $('issueExp').value; let opt = {};
     if (ev === 'date') { const d = $('issueDate').value; if (!d) return toast('만료일을 선택해 주세요.'); const [y, m, dd] = d.split('-').map(Number); opt.expMs = new Date(y, m - 1, dd).getTime(); if (opt.expMs < Date.now() - 86400000) return toast('만료일은 오늘 이후여야 해요.'); }
     else opt.expDays = parseInt(ev, 10) || 0;
     const now = Date.now(), list = [], memo = $('issueMemo').value.trim().slice(0, 20), batch = 'B' + randomId();
     if (store.seen() > now + 5 * 60 * 1000) toast('⚠️ 기기 시계가 이전 기록보다 뒤로 바뀌었어요. 날짜를 확인한 뒤 발급해 주세요.', 5000);
-    for (let i = 0; i < q; i++) { const t = await makeToken({ ...opt, issuedMs: now }); list.push({ ...t, at: now, batch, memo }); }
+    for (let i = 0; i < q; i++) { const t = await makeToken({ ...opt, issuedMs: now, key }); list.push({ ...t, at: now, batch, memo }); }
     store.addIssued(list); A.batch = list; A.idx = 0;
     $('issueResult').hidden = false; preview(); toast(`진단권 ${q}장을 발급했어요.${memo ? ' (' + memo + ')' : ''}`);
   }
@@ -138,7 +155,7 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
   function saveCfg() { store.setCfg({ operator: $('cfgOp').value.trim().slice(0, 40) || '매장', contact: $('cfgCt').value.trim().slice(0, 40) }); toast('운영 정보를 저장했어요. 동의 화면에 표시돼요.'); }
   const stamp = () => { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}_${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`; };
   async function backup(kind) {
-    const b = await makeBackup(store, kind);
+    const b = await makeBackup(store, kind, Date.now(), await loadSignKey());
     download(new Blob([JSON.stringify(b, null, 1)], { type: 'application/json' }), kind === 'used' ? `진단권_사용기록_${stamp()}.json` : `진단권_백업_${stamp()}.json`);
     toast(kind === 'used' ? '사용 기록 파일을 저장했어요. 다른 기기에서 [백업·기록 파일 불러오기]로 가져오세요.' : '백업 파일을 저장했어요. 안전한 곳에 보관해 주세요.', 4500);
   }
@@ -147,7 +164,8 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
     const r = await readBackup(obj); if (!r.ok) return toast(r.msg, 4500);
     const when = r.at ? new Date(r.at).toLocaleString('ko-KR', { hour12: false }) : '';
     if (!(await ask(r.kind === 'used' ? `사용 기록 파일(${when})을 가져올까요? 이 기기의 기록에 합쳐져요.` : `백업 파일(${when})을 불러올까요? 발급 목록·사용 기록은 지금 기록에 합쳐지고, 운영 정보는 백업 것으로 바뀌어요.`))) return;
-    let withPw = false; if (r.kind === 'backup' && r.data.pw && (await ask('관리자 비밀번호도 백업 파일의 비밀번호로 바꿀까요?'))) withPw = true;
+    let withPw = false; if (r.kind === 'backup' && r.data.pw && r.signed && (await ask('관리자 비밀번호도 백업 파일의 비밀번호로 바꿀까요?'))) withPw = true;
+    if (r.kind === 'backup' && r.data.pw && !r.signed) toast('발급 키 서명이 없는 백업이라 관리자 비밀번호는 가져오지 않아요.', 4000);
     const n = applyBackup(store, r, { withPw });
     toast(`가져왔어요: 발급 ${n.issued} · 사용 ${n.used} · 취소 ${n.revoked}${n.pw ? ' · 비밀번호' : ''}`, 4500); render();
   }
@@ -165,7 +183,7 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
     const r = await tryLogin(store, cur); if (!r.ok) { $('pwCur').value = ''; return toast(r.locked ? '잠시 후 다시 시도해 주세요.' : '현재 비밀번호가 맞지 않아요.'); }
     store.setPw(await makePwRecord(n1)); ['pwCur', 'pwNew', 'pwNew2'].forEach((i) => ($(i).value = '')); toast('비밀번호를 바꿨어요.');
   }
-  function grantPass() { const r = store.grantPass(); logout(); toast(r.renewed ? '이미 대기 중인 허가가 있어서 1시간 연장했어요 (1회만).' : 'QR 없이 진단 1회를 허가했어요 (1시간 안에 사용). 진단 시작을 눌러 주세요.', 4500); go('home'); }
+  async function grantPass() { const key = await needKey(); if (!key) return; const r = await store.grantPass(key); logout(); toast(r.renewed ? '이미 대기 중인 허가가 있어서 1시간 연장했어요 (1회만).' : 'QR 없이 진단 1회를 허가했어요 (1시간 안에 사용). 진단 시작을 눌러 주세요.', 4500); go('home'); }
   async function cancelPass() { if (!(await ask('대기 중인 QR 없이 1회 허가를 취소할까요?'))) return; store.cancelPass(); toast('허가를 취소했어요.'); render(); }
 
   // ---------- 연결 ----------
@@ -199,6 +217,8 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
   $('btnDoPrint').onclick = () => window.print(); $('btnSheetPng').onclick = sheetPng; $('btnPvPdf').onclick = () => pdf(A.pvList); $('btnPvClose').onclick = closePv;
   $('btnPrintUnused').onclick = () => { const items = listItems().filter((x) => x.k === 'new').map((x) => x.it); printView(items); };
   $('qList').addEventListener('click', (e) => { const b = e.target.closest('[data-revoke]'); if (b) revoke(b.dataset.revoke); });
+  $('btnKeyLoad').onclick = () => $('keyFile').click(); $('keyFile').onchange = (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) keyFile(f); };
+  $('btnKeyRemove').onclick = keyRemove;
   $('btnPwChange').onclick = changePw; $('btnGrantPass').onclick = grantPass; $('btnAdminLogout').onclick = () => logout('관리자 모드에서 나왔어요.');
   return { open, logout, state: A, get authed() { return A.authed; }, setIdleMs: (ms) => { A.idleMs = ms; } };
 }

@@ -10,7 +10,23 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="퍼스널컬러">
-<title>퍼스널컬러 진단</title>
+<title>퍼스널컬러 진단 — 사계절 8타입 · 드레이핑 비교</title>
+<meta name="description" content="카메라나 사진으로 피부·눈동자·머리카락 색을 재서 사계절 8타입 퍼스널컬러를 추정하고, 드레이핑으로 직접 비교해 확인해요. 사진은 기기 안에서만 분석해요.">
+<link rel="canonical" href="https://handj1998-del.github.io/personal-color/">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="ko_KR">
+<meta property="og:site_name" content="퍼스널컬러 진단">
+<meta property="og:title" content="퍼스널컬러 진단 — 사계절 8타입 · 드레이핑 비교">
+<meta property="og:description" content="피부·눈동자·머리카락 색으로 8타입을 추정하고 드레이핑으로 확인해요. 베스트 컬러·립·코디 조합까지. 사진은 기기 안에서만 분석해요.">
+<meta property="og:url" content="https://handj1998-del.github.io/personal-color/">
+<meta property="og:image" content="https://handj1998-del.github.io/personal-color/icons/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="퍼스널컬러 진단 — 사계절 8타입 팔레트">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="퍼스널컬러 진단 — 사계절 8타입 · 드레이핑 비교">
+<meta name="twitter:description" content="피부·눈동자·머리카락 색으로 8타입을 추정하고 드레이핑으로 확인해요.">
+<meta name="twitter:image" content="https://handj1998-del.github.io/personal-color/icons/og-image.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -28,6 +44,7 @@
   <!-- 카메라 무대: 보정/촬영/드레이핑 화면에서 사용 -->
   <section class="stage" id="stage" aria-label="카메라 화면">
     <video id="video" playsinline muted autoplay></video>
+    <canvas id="photo" width="1" height="1" aria-label="진단한 사진 (드레이핑 비교용, 저장하지 않음)"></canvas>
     <svg id="overlay" class="overlay" preserveAspectRatio="xMidYMid slice" viewBox="0 0 1280 720" aria-hidden="true">
       <defs>
         <linearGradient id="gGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a6a1f"/><stop offset=".25" stop-color="#f6dc8a"/><stop offset=".5" stop-color="#c79a35"/><stop offset=".75" stop-color="#ffe9a8"/><stop offset="1" stop-color="#9c7624"/></linearGradient>
@@ -83,8 +100,8 @@
       <p class="camnote">📷 카메라는 QR 확인에만 쓰고 저장하지 않아요. (⇄ 버튼으로 앞/뒤 카메라 전환)</p>
       <div class="status" id="ticketMsg">QR 코드를 찾는 중이에요…</div>
       <div class="bigbtns">
-        <label class="manual" for="ticketCode">카메라로 안 읽히면 카드의 코드를 입력해 주세요
-          <input id="ticketCode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"></label>
+        <label class="manual" for="ticketCode">카메라로 안 읽히면 카드 아래쪽의 짧은 코드를 입력해 주세요 (진단권을 발급한 기기에서만 확인돼요)
+          <input id="ticketCode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XX"></label>
         <button class="btn primary xl" id="btnTicketCode" type="button">코드로 확인</button>
         <button class="btn ghost" id="btnTicketCancel" type="button">취소</button>
       </div>
@@ -120,6 +137,7 @@
           <label class="memo">묶음 메모 (선택) <input id="issueMemo" type="text" maxlength="20" placeholder="예: 10월 이벤트" autocomplete="off"></label>
           <button class="btn primary" id="btnIssue" type="button">발급하기</button>
         </div>
+        <p class="status bad" id="issueKeyWarn" hidden>이 기기에 발급 키가 없어 진단권을 발급할 수 없어요. [설정] → [발급 키 불러오기]로 개인키 파일을 불러와 주세요.</p>
         <div id="issueResult" hidden>
           <div class="cardnav"><button class="btn" id="btnCardPrev" type="button" aria-label="이전 카드">◀</button><span id="cardIdx"></span><button class="btn" id="btnCardNext" type="button" aria-label="다음 카드">▶</button></div>
           <img id="cardPreview" class="cardpreview" alt="진단권 카드 미리보기">
@@ -138,6 +156,14 @@
       </div>
       <div id="admStats" hidden></div>
       <div id="admSettings" hidden>
+        <h3>진단권 발급 키 <small>(개인키 · 이 기기에만 저장)</small></h3>
+        <div class="status" id="keyStatus">발급 키 확인 중…</div>
+        <div class="setgrid">
+          <button class="btn" id="btnKeyLoad" type="button">발급 키 불러오기 (개인키 파일)</button>
+          <button class="btn" id="btnKeyRemove" type="button" hidden>이 기기에서 발급 키 지우기</button>
+        </div>
+        <input type="file" id="keyFile" hidden>
+        <p class="sub">진단권 발급과 'QR 없이 1회 허가'는 이 키가 있는 기기에서만 할 수 있어요. 키 파일은 백업해서 안전한 곳에 보관하고, 다른 사람에게 보내거나 인터넷에 올리지 마세요.</p>
         <h3>운영 정보 <small>(동의 화면에 표시)</small></h3>
         <div class="pwgrid">
           <label>운영 주체 <input id="cfgOp" type="text" maxlength="40" autocomplete="off"></label>
@@ -198,7 +224,7 @@
       <h2>촬영 전 안내</h2>
       <ul class="consent-list">
         <li><b>이용 목적</b> 어울리는 색(퍼스널컬러)을 추정하고 드레이핑으로 비교하기 위해 카메라로 얼굴 색을 측정해요.</li>
-        <li><b>처리 방식 · 저장 안 함</b> 얼굴 영상은 이 기기 안에서만 실시간으로 분석하고, 저장하거나 서버로 보내지 않아요. 분석이 끝나면 바로 지우고 카메라도 꺼요.</li>
+        <li><b>처리 방식 · 저장 안 함</b> 얼굴 영상은 이 기기 안에서만 실시간으로 분석하고, 저장하거나 서버로 보내지 않아요. 분석이 끝나면 바로 지우고 카메라도 꺼요. 사진 파일로 진단하면 드레이핑 비교를 위해 그 사진을 화면에만 잠시 띄워 두고, 처음으로·다음 고객·자동 초기화 때 바로 지워요.</li>
         <li><b>결과</b> 결과 이미지에는 색과 글자만 들어가요. 결과 QR에는 타입·얼굴형 글자만 담겨요. 얼굴 사진·이름 같은 개인정보는 들어가지 않아요.</li>
         <li><b>동의 거부</b> 동의하지 않을 수 있어요. 동의하지 않으면 카메라 진단만 이용할 수 없고, 그 밖의 불이익은 없어요.</li>
         <li><b>추정 결과</b> 조명과 카메라에 따라 달라질 수 있는 참고용 결과예요. 의학적·전문 진단이 아니에요.</li>
@@ -220,6 +246,7 @@
         <li>☀️ 창가의 <b>자연광</b>에서, 얼굴 정면으로 빛이 오게 해 주세요. 직사광선·노란 조명은 피해 주세요.</li>
         <li>📄 <b>흰 종이(A4)</b>를 얼굴 옆 같은 빛 아래에서 사각형 안에 가득 차게 비추고 <b>보정하기</b>를 눌러 주세요.</li>
         <li>컬러 렌즈·색 안경·진한 메이크업은 결과에 영향을 줄 수 있어요.</li>
+        <li>보정한 뒤에는 <b>자리·조명을 바꾸지 말고</b> 바로 얼굴을 촬영해 주세요.</li>
       </ul>
       <div class="status" id="calibStatus">보정 안 함</div>
       <div class="bigbtns">
@@ -264,8 +291,8 @@
     <!-- 드레이핑 -->
     <div class="screen" data-for="drape">
       <div class="tabs" role="tablist">
-        <button class="tab" id="tabRounds" type="button" role="tab">비교 진단</button>
-        <button class="tab" id="tabBrowse" type="button" role="tab">팔레트 둘러보기</button>
+        <button class="tab" id="tabRounds" type="button" role="tab" aria-selected="true">비교 진단</button>
+        <button class="tab" id="tabBrowse" type="button" role="tab" aria-selected="false">팔레트 둘러보기</button>
       </div>
       <div id="drapeRoundsBox">
         <div class="roundhead"><h2 id="roundTitle"></h2><div class="progress" id="roundProg"></div></div>
@@ -306,6 +333,7 @@
       <div id="resultCard" class="card"></div>
       <div class="bigbtns row">
         <button class="btn primary xl" id="btnSavePng" type="button">결과 이미지 저장</button>
+        <button class="btn xl" id="btnSaveStory" type="button">스토리 이미지</button>
         <button class="btn primary xl" id="btnResultQr" type="button">📱 휴대폰으로 받기</button>
         <button class="btn xl" id="btnBackDrape" type="button">드레이핑 다시 보기</button>
         <button class="btn danger xl" id="btnNextCustomer" type="button">다음 고객 (초기화)</button>
@@ -317,12 +345,13 @@
       <div id="sharedCard" class="card"></div>
       <div class="bigbtns row">
         <button class="btn primary xl" id="btnSharedPng" type="button">결과 이미지 저장</button>
+        <button class="btn xl" id="btnSharedStory" type="button">스토리 이미지</button>
       </div>
     </div>
   </section>
 </main>
 
-<div class="modal" id="modal" hidden>
+<div class="modal" id="modal" hidden role="alertdialog" aria-modal="true" aria-labelledby="modalMsg">
   <div class="modal-box">
     <p id="modalMsg"></p>
     <div class="modal-btns"><button class="btn" id="modalNo" type="button">취소</button><button class="btn primary" id="modalYes" type="button">확인</button></div>
@@ -333,12 +362,12 @@
   <div class="pv-progress" id="pvProgress" hidden><i id="pvBar"></i></div>
   <div class="pv-pages" id="pvPages"></div>
 </div>
-<div class="modal" id="idlePrompt" hidden>
+<div class="modal" id="idlePrompt" hidden role="alertdialog" aria-modal="true" aria-live="assertive">
   <div class="modal-box"><p><b>계속하시겠어요?</b><br>오래 사용하지 않으면 개인정보 보호를 위해 처음 화면으로 돌아가요.</p>
     <p class="countdown"><span id="idleCount">20</span>초 후 처음으로</p>
     <div class="modal-btns"><button class="btn primary xl" id="btnIdleContinue" type="button">계속하기</button></div></div>
 </div>
-<div class="modal" id="rqView" hidden>
+<div class="modal" id="rqView" hidden role="dialog" aria-modal="true" aria-label="결과 보기 QR">
   <div class="modal-box qrbox"><p><b>휴대폰 카메라로 QR을 찍어 주세요</b></p>
     <canvas id="rqCanvas" width="360" height="360" aria-label="결과 보기 QR"></canvas>
     <p class="sub">색·타입 정보만 주소에 담겨요. 얼굴 사진·개인정보는 없고, 서버에 저장되지 않아요. (휴대폰에서 열 때 인터넷 필요)</p>
@@ -351,7 +380,7 @@
     <div class="modal-btns"><button class="btn" id="btnSyncPrev" type="button">◀</button><button class="btn" id="btnSyncNext" type="button">▶</button><button class="btn primary" id="btnSyncClose" type="button">닫기</button></div></div>
 </div>
 <div class="updbar" id="updBar" hidden><span>새 버전이 있어요.</span><button class="btn primary" id="btnUpdReload" type="button">새로고침</button><button class="btn" id="btnUpdLater" type="button">나중에</button></div>
-<div class="toast" id="toast" hidden></div>
+<div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
 <canvas id="work" hidden></canvas>
 <script type="module" src="js/app.js"></script>
 </body>

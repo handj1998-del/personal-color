@@ -100,8 +100,8 @@
       <p class="camnote">📷 카메라는 QR 확인에만 쓰고 저장하지 않아요. (⇄ 버튼으로 앞/뒤 카메라 전환)</p>
       <div class="status" id="ticketMsg">QR 코드를 찾는 중이에요…</div>
       <div class="bigbtns">
-        <label class="manual" for="ticketCode">카메라로 안 읽히면 카드의 코드를 입력해 주세요
-          <input id="ticketCode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"></label>
+        <label class="manual" for="ticketCode">카메라로 안 읽히면 카드 아래쪽의 짧은 코드를 입력해 주세요 (진단권을 발급한 기기에서만 확인돼요)
+          <input id="ticketCode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XX"></label>
         <button class="btn primary xl" id="btnTicketCode" type="button">코드로 확인</button>
         <button class="btn ghost" id="btnTicketCancel" type="button">취소</button>
       </div>
@@ -137,6 +137,7 @@
           <label class="memo">묶음 메모 (선택) <input id="issueMemo" type="text" maxlength="20" placeholder="예: 10월 이벤트" autocomplete="off"></label>
           <button class="btn primary" id="btnIssue" type="button">발급하기</button>
         </div>
+        <p class="status bad" id="issueKeyWarn" hidden>이 기기에 발급 키가 없어 진단권을 발급할 수 없어요. [설정] → [발급 키 불러오기]로 개인키 파일을 불러와 주세요.</p>
         <div id="issueResult" hidden>
           <div class="cardnav"><button class="btn" id="btnCardPrev" type="button" aria-label="이전 카드">◀</button><span id="cardIdx"></span><button class="btn" id="btnCardNext" type="button" aria-label="다음 카드">▶</button></div>
           <img id="cardPreview" class="cardpreview" alt="진단권 카드 미리보기">
@@ -155,6 +156,14 @@
       </div>
       <div id="admStats" hidden></div>
       <div id="admSettings" hidden>
+        <h3>진단권 발급 키 <small>(개인키 · 이 기기에만 저장)</small></h3>
+        <div class="status" id="keyStatus">발급 키 확인 중…</div>
+        <div class="setgrid">
+          <button class="btn" id="btnKeyLoad" type="button">발급 키 불러오기 (개인키 파일)</button>
+          <button class="btn" id="btnKeyRemove" type="button" hidden>이 기기에서 발급 키 지우기</button>
+        </div>
+        <input type="file" id="keyFile" hidden>
+        <p class="sub">진단권 발급과 'QR 없이 1회 허가'는 이 키가 있는 기기에서만 할 수 있어요. 키 파일은 백업해서 안전한 곳에 보관하고, 다른 사람에게 보내거나 인터넷에 올리지 마세요.</p>
         <h3>운영 정보 <small>(동의 화면에 표시)</small></h3>
         <div class="pwgrid">
           <label>운영 주체 <input id="cfgOp" type="text" maxlength="40" autocomplete="off"></label>

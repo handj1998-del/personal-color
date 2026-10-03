@@ -1,7 +1,10 @@
 // 진단권(QR) 서명·검증, 1회 사용 기록, 관리자 비밀번호·잠금 로직
-// ⚠️ 서버가 없는 정적 사이트라 비밀키와 해시가 코드에 들어 있어요. 무작위·위조 QR을 막는 '억제' 수준의 보안이며,
-//    1회 사용 기록은 이 기기(브라우저 저장소)에만 남아요. 여러 기기에서 공유하려면 서버가 필요해요.
-const APP_SECRET = '295b9078d5b6b506e5cfda37d3cac3bbfa49e304ae92244b262d48ea3e89ecde';
+// v1.6.1: 공유 비밀키(HMAC) 방식을 없애고 ECDSA P-256 전자서명으로 바꿈.
+//  - 공개 앱(이 코드)에는 '공개키'만 있어 검증만 할 수 있고, 진단권 발급·QR 없이 1회 허가에 필요한 '개인키'는
+//    관리자 기기에만 있음 (관리자 설정 → [발급 키 불러오기]로 파일을 한 번 불러오면 IndexedDB에 '내보낼 수 없는 키'로 저장).
+//  - 개인키는 저장소(GitHub)에 절대 올리지 않음. 예전(v1.6.0까지의) HMAC 진단권은 더 이상 통과하지 않음.
+//  - 한계: 서버가 없어서 1회 사용 기록·관리자 비밀번호는 각 기기의 브라우저 저장소에만 있음 (개발자 도구로 기기 기록을 지우는 것까지는 못 막음).
+export const TICKET_PUBKEY = { kty: 'EC', crv: 'P-256', x: 'pfp8U-55mddCiqaLLNStWbCem0WkGu4196wMz_ENYdI', y: 'eeaImekFJpG-s3q0m2Kpa3uHbR6P6gQFkZVPPi4yMOI' };
 export const ALPHA = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // Crockford Base32 (I L O U 없음)
 const EPOCH = Date.UTC(2024, 0, 1); const DAY = 86400000;
 export const SESSION_MS = 10 * 60 * 1000;          // 진행 중 진단 이어하기 허용 시간 (이 기기의 [이어하기] 버튼으로만)
@@ -10,6 +13,8 @@ export const CLOCK_BACK_MS = 5 * 60 * 1000;        // 마지막 기록보다 5�
 export const LOCK_FAILS = 5, LOCK_MS = 60 * 1000;  // 비밀번호 5회 오류 → 60초 잠금
 export const ADMIN_IDLE_MS = 3 * 60 * 1000;        // 관리자 3분 무동작 → 자동 로그아웃
 // 기본 관리자 비밀번호의 PBKDF2-SHA256 해시 (평문은 코드에 넣지 않음, 사용방법.txt 참고)
+// ⚠️ 해시가 공개 코드에 있어 짧은 숫자 비밀번호는 오프라인으로 풀릴 수 있음 → 비밀번호는 '손님이 관리자 화면을 여는 것'만 막는 용도.
+//    진단권 발급·QR 없이 1회 허가처럼 중요한 동작은 비밀번호가 아니라 개인키가 있어야 됨. 설치 후 비밀번호는 꼭 바꿔 주세요.
 export const DEFAULT_PW = { salt: '794222c6f54d72bc0ba026c537f3063c', hash: '52a9ba73e2bb49f98d4780f6914281403a53107a1051da99cadbf8d786aa2b56', iter: 150000 };
 
 const enc = new TextEncoder();
@@ -25,41 +30,83 @@ export const dateOfDay = (d) => new Date(EPOCH + d * DAY);
 export const fmtDay = (d) => { const t = dateOfDay(d); return `${t.getUTCFullYear()}.${String(t.getUTCMonth() + 1).padStart(2, '0')}.${String(t.getUTCDate()).padStart(2, '0')}`; };
 const localDay = (ms) => { const t = new Date(ms); return dayOf(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())); };
 
-async function sig(body) {
-  const key = await subtle().importKey('raw', unhex(APP_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  return bitsToB32(new Uint8Array(await subtle().sign('HMAC', key, enc.encode('PC1|' + body))), 10);
+// ---------- ECDSA P-256 서명 (공개키 검증 · 개인키 서명) ----------
+const EC = { name: 'ECDSA', namedCurve: 'P-256' }, ES = { name: 'ECDSA', hash: 'SHA-256' };
+const SIG_CHARS = 103; // 64바이트(r||s) = 512비트 → Base32 103자
+let pubP = null;
+export const publicKey = () => (pubP ||= subtle().importKey('jwk', { ...TICKET_PUBKEY, ext: true }, EC, false, ['verify']));
+const bytesToB32 = (bytes, chars) => { let bits = ''; for (const b of bytes) bits += b.toString(2).padStart(8, '0'); bits = bits.padEnd(chars * 5, '0'); let s = ''; for (let i = 0; i < chars; i++) s += ALPHA[parseInt(bits.slice(i * 5, i * 5 + 5), 2)]; return s; };
+const b32ToBytes = (s, nBytes) => { let bits = ''; for (const ch of s) { const v = ALPHA.indexOf(ch); if (v < 0) return null; bits += v.toString(2).padStart(5, '0'); } const out = new Uint8Array(nBytes); for (let i = 0; i < nBytes; i++) out[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2); return out; };
+export async function signText(key, text) { return new Uint8Array(await subtle().sign(ES, key, enc.encode(text))); }
+export async function verifyText(sigBytes, text) { try { return await subtle().verify(ES, await publicKey(), sigBytes, enc.encode(text)); } catch { return false; } }
+const b64u = (u8) => btoa(String.fromCharCode(...u8)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64u = (s) => { try { const b = atob(String(s).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, (c) => c.charCodeAt(0)); } catch { return null; } };
+async function sigB32(key, body) { return bytesToB32(await signText(key, 'PC2|' + body), SIG_CHARS); }
+
+// ---------- 관리자 기기의 개인키 (IndexedDB, 내보낼 수 없는 CryptoKey) ----------
+const KDB = 'pc-keys', KST = 'k', KID = 'ticket-sign';
+function kdb() { return new Promise((res, rej) => { const r = indexedDB.open(KDB, 1); r.onupgradeneeded = () => r.result.createObjectStore(KST); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+async function kdo(mode, fn) { const db = await kdb(); try { return await new Promise((res, rej) => { const tx = db.transaction(KST, mode), st = tx.objectStore(KST), rq = fn(st); tx.oncomplete = () => res(rq?.result); tx.onerror = tx.onabort = () => rej(tx.error); }); } finally { db.close(); } }
+let signKeyCache;
+export async function loadSignKey() { if (signKeyCache !== undefined) return signKeyCache; try { signKeyCache = (await kdo('readonly', (st) => st.get(KID))) || null; } catch { signKeyCache = null; } return signKeyCache; }
+// 키 파일(PEM 'PRIVATE KEY'(PKCS#8) 또는 JWK JSON) → 공개키와 짝이 맞는지 확인 → 내보낼 수 없는 키로 저장
+export async function importSignKey(text) {
+  const t = String(text || '').trim(); let key;
+  try {
+    if (t.startsWith('{')) { const j = JSON.parse(t); key = await subtle().importKey('jwk', { kty: j.kty, crv: j.crv, x: j.x, y: j.y, d: j.d }, EC, false, ['sign']); }
+    else { const m = /-----BEGIN PRIVATE KEY-----([\s\S]+?)-----END PRIVATE KEY-----/.exec(t); if (!m) return { ok: false, reason: 'format' }; const der = Uint8Array.from(atob(m[1].replace(/\s+/g, '')), (c) => c.charCodeAt(0)); key = await subtle().importKey('pkcs8', der, EC, false, ['sign']); }
+  } catch { return { ok: false, reason: 'format' }; }
+  const probe = 'PCK|' + randomId();
+  if (!(await verifyText(await signText(key, probe), probe))) return { ok: false, reason: 'mismatch' };
+  await kdo('readwrite', (st) => st.put(key, KID)); signKeyCache = key;
+  return { ok: true };
 }
+export async function removeSignKey() { try { await kdo('readwrite', (st) => st.delete(KID)); } catch {} signKeyCache = null; }
+
 export function randomId() { const b = new Uint8Array(5); globalThis.crypto.getRandomValues(b); return bitsToB32(b, 8); }
 const group = (s) => s.match(/.{1,4}/g).join('-');
-// 코드: PC1-[ID 8][발급일 3][만료일 3][서명 10] → 24자를 4자씩 끊어 표시
-export async function makeToken({ id = randomId(), issuedMs = Date.now(), expDays = 0, expMs = null } = {}) {
+// v1.6.1 코드: QR = 'PC2' + [ID 8][발급일 3][만료일 3] + [ECDSA 서명 103] (영숫자 QR 모드, 120자)
+//   카드에 인쇄하는 '짧은 코드'는 앞 14자(ID·날짜)만 → 카메라가 안 될 때 입력용. 짧은 코드는 서명이 없으므로
+//   이 기기의 발급 목록에 있는 진단권(=서명된 전체 코드가 저장돼 있음)일 때만, 그 전체 코드의 서명을 검증해 받아들임.
+export async function makeToken({ id = randomId(), issuedMs = Date.now(), expDays = 0, expMs = null, key = null } = {}) {
+  if (!key) throw new Error('nokey');
   const iss = localDay(issuedMs), exp = expMs ? localDay(expMs) : expDays ? iss + expDays : 0;
   const body = id + b32(iss, 3) + b32(exp, 3);
-  const raw = body + (await sig(body));
-  return { id, issued: iss, exp, code: group(raw), token: 'PC1-' + group(raw) };
+  const raw = body + (await sigB32(key, body));
+  return { id, issued: iss, exp, code: group(body), token: 'PC2' + raw };
 }
 // 사람 입력/QR 내용 정규화: 대소문자·공백·하이픈 무시, 헷갈리는 글자(O→0, I/L→1) 보정
 export function normalize(text) {
   let s = String(text || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
-  if (s.length === 27 && s.startsWith('PC1')) s = s.slice(3);
+  if (s.length === 14 + SIG_CHARS + 3 && s.startsWith('PC2')) s = s.slice(3);
+  else if (s.length === 27 && s.startsWith('PC1')) s = s.slice(3);
   return s.replace(/O/g, '0').replace(/[IL]/g, '1');
 }
-export async function verifyToken(text, now = Date.now()) {
-  const s = normalize(text);
-  if (s.length !== 24 || /[^0-9A-HJKMNP-TV-Z]/.test(s)) return { ok: false, reason: 'format' };
-  const body = s.slice(0, 14), given = s.slice(14);
-  let expect; try { expect = await sig(body); } catch { return { ok: false, reason: 'crypto' }; }
-  if (expect !== given) return { ok: false, reason: 'signature' };
+const FULL_LEN = 14 + SIG_CHARS;
+export async function verifyToken(text, now = Date.now(), store = null) {
+  let s = normalize(text);
+  if (s.length === 24) return { ok: false, reason: 'old' }; // v1.6.0까지의 HMAC 진단권
+  if (s.length === 14) { // 짧은 코드(수동 입력): 이 기기 발급 목록의 서명된 전체 코드로 확인
+    const it = (store?.issued?.() || []).map((x) => normalize(x.token)).find((t) => t.length === FULL_LEN && t.startsWith(s));
+    if (!it) return { ok: false, reason: 'manual' };
+    s = it;
+  }
+  if (s.length !== FULL_LEN || /[^0-9A-HJKMNP-TV-Z]/.test(s)) return { ok: false, reason: 'format' };
+  const body = s.slice(0, 14), given = b32ToBytes(s.slice(14), 64);
+  let good = false; try { good = !!given && (await subtle().verify(ES, await publicKey(), given, enc.encode('PC2|' + body))); } catch { return { ok: false, reason: 'crypto' }; }
+  if (!good) return { ok: false, reason: 'signature' };
   const id = s.slice(0, 8), issued = unb32(s.slice(8, 11)), exp = unb32(s.slice(11, 14));
   const today = localDay(now);
   if (issued > today + 1) return { ok: false, reason: 'future', id };
   if (exp && today > exp) return { ok: false, reason: 'expired', id, issued, exp };
-  return { ok: true, id, issued, exp, code: group(s) };
+  return { ok: true, id, issued, exp, code: group(body) };
 }
 export const REJECT_MSG = {
   format: '진단권 QR 코드가 아니에요. 매장에서 받은 진단권을 보여 주세요.',
   signature: '유효하지 않은 QR 코드예요. 매장에서 발급한 진단권인지 확인해 주세요.',
   crypto: '이 브라우저에서는 진단권을 확인할 수 없어요 (HTTPS 주소로 접속해 주세요).',
+  old: '예전 방식의 진단권이라 더 이상 쓸 수 없어요. 매장에서 새 진단권으로 바꿔 받아 주세요.',
+  manual: '이 기기에서 발급한 진단권만 코드 입력으로 확인할 수 있어요. 카드의 QR을 카메라에 보여 주세요.',
   future: '발급일이 이 기기 날짜보다 뒤예요. 기기 날짜가 맞는지 직원에게 확인해 주세요.',
   expired: '유효기간이 지난 QR 코드예요.',
   used: '이미 사용된 QR 코드예요.',
@@ -102,18 +149,20 @@ export function createStore(backend = globalThis.localStorage) {
     endSession() { del(K.active); },
     // 관리자 1회 허가
     // 관리자 1회 허가: 쌓이지 않음(최대 1개), 1시간 뒤 자동 만료, 취소 가능
-    passInfo(now = Date.now()) { const p = get(K.pass, null); return p && typeof p === 'object' && (p.n | 0) > 0 && p.until > now && now >= (p.at || 0) - CLOCK_BACK_MS ? p : null; },
-    grantPass(now = Date.now()) { const had = !!this.passInfo(now); set(K.pass, { at: now, until: now + PASS_MS, n: 1 }); return { renewed: had }; },
-    takePass(now = Date.now()) { const p = this.passInfo(now); if (!p) { del(K.pass); return false; } if ((p.n | 0) > 1) set(K.pass, { ...p, n: p.n - 1 }); else del(K.pass); return true; },
+    // v1.6.1: 허가는 개인키로 서명해 저장 → 저장소를 직접 고쳐 허가를 만들어도 서명 검증에서 걸림
+    passInfo(now = Date.now()) { const p = get(K.pass, null); return p && typeof p === 'object' && p.n === 1 && typeof p.sig === 'string' && p.until > now && now >= (p.at || 0) - CLOCK_BACK_MS ? p : null; },
+    async grantPass(key, now = Date.now()) { if (!key) throw new Error('nokey'); const had = !!this.passInfo(now); const p = { at: now, until: now + PASS_MS, n: 1, nonce: randomId() }; p.sig = b64u(await signText(key, passMsg(p))); set(K.pass, p); return { renewed: had }; },
+    async takePass(now = Date.now()) { const p = this.passInfo(now); del(K.pass); if (!p) return false; const sb = unb64u(p.sig); return !!sb && verifyText(sb, passMsg(p)); },
     cancelPass() { del(K.pass); },
     lock: () => get(K.lock, { fails: 0, until: 0 }), setLock: (v) => set(K.lock, v),
     pw: () => get(K.pw, null), setPw: (v) => set(K.pw, v),
   };
 }
+const passMsg = (p) => `PCP|${p.nonce}|${p.at}|${p.until}`;
 // 스캔/입력한 코드를 받아들일지 판단 (같은 세션 이어하기는 허용)
 export async function admit(store, text, now = Date.now(), src = 'qr') {
   // 만료 판정은 '지금까지 본 가장 늦은 시각' 기준 (시계를 뒤로 돌려도 만료 코드가 통과하지 않게)
-  const v = await verifyToken(text, Math.max(now, store.seen?.() || 0));
+  const v = await verifyToken(text, Math.max(now, store.seen?.() || 0), store);
   if (!v.ok) { if (v.reason === 'future' && store.setClockWarn) store.setClockWarn({ kind: 'behind', at: now, id: v.id }); return { ...v, msg: REJECT_MSG[v.reason] }; }
   if (store.isRevoked(v.id)) return { ok: false, reason: 'revoked', id: v.id, msg: REJECT_MSG.revoked };
   const a = store.active(now);
@@ -153,29 +202,32 @@ export async function tryLogin(store, pw, now = Date.now()) {
   return nl.until ? { ok: false, locked: true, waitS: Math.ceil(LOCK_MS / 1000) } : { ok: false, left: LOCK_FAILS - nl.fails };
 }
 
-// ---------- 서명된 파일·QR (백업, 기기 간 사용 기록 옮기기) ----------
-export async function hmacHex(str) {
-  const key = await subtle().importKey('raw', unhex(APP_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  return hex(await subtle().sign('HMAC', key, enc.encode('PCF|' + str)));
-}
+// ---------- 백업 파일 · 기기 간 사용 기록 옮기기 ----------
+// v1.6.1: 공유 비밀키 서명을 없앰. 개인키가 있는 기기에서 만든 백업은 ECDSA 서명(esig)이 붙고, 서명이 맞을 때만 관리자 비밀번호까지 가져올 수 있음.
+//  발급 목록은 서명 없이 합쳐도 안전함 (각 진단권 코드에 개인키 서명이 들어 있고, 받아들일 때 그 서명을 검증하므로).
 const canon = (o) => JSON.stringify(o);
-export async function makeBackup(store, kind = 'backup', now = Date.now()) {
+export async function makeBackup(store, kind = 'backup', now = Date.now(), key = null) {
   const data = kind === 'used' ? { used: store.used(), revoked: store.revoked() }
     : { issued: store.issued(), used: store.used(), revoked: store.revoked(), cfg: store.cfg(), pw: store.pw() };
-  return { app: 'personal-color', kind, v: 1, at: now, data, sig: await hmacHex(kind + '|' + canon(data)) };
+  const out = { app: 'personal-color', kind, v: 2, at: now, data };
+  if (key) out.esig = b64u(await signText(key, 'PCF2|' + kind + '|' + canon(data)));
+  return out;
 }
 export async function readBackup(obj) {
-  if (!obj || obj.app !== 'personal-color' || !['backup', 'used'].includes(obj.kind) || !obj.data) return { ok: false, msg: '이 앱의 백업 파일이 아니에요.' };
-  if ((await hmacHex(obj.kind + '|' + canon(obj.data))) !== obj.sig) return { ok: false, msg: '파일 내용이 바뀌었거나 손상돼서 가져올 수 없어요.' };
-  return { ok: true, kind: obj.kind, data: obj.data, at: obj.at };
+  if (!obj || obj.app !== 'personal-color' || !['backup', 'used'].includes(obj.kind) || !obj.data || typeof obj.data !== 'object') return { ok: false, msg: '이 앱의 백업 파일이 아니에요.' };
+  const sb = obj.esig ? unb64u(obj.esig) : null;
+  const signed = !!sb && (await verifyText(sb, 'PCF2|' + obj.kind + '|' + canon(obj.data)));
+  if (obj.esig && !signed) return { ok: false, msg: '파일 내용이 바뀌었거나 손상돼서 가져올 수 없어요.' };
+  return { ok: true, kind: obj.kind, data: obj.data, at: obj.at, signed };
 }
-export function applyBackup(store, { kind, data }, { withPw = false } = {}) {
+export function applyBackup(store, { kind, data, signed = false }, { withPw = false } = {}) {
   const r = { issued: 0, used: 0, revoked: 0, pw: false };
-  if (kind === 'backup') { r.issued = store.mergeIssued(data.issued); if (data.cfg) store.setCfg({ operator: data.cfg.operator, contact: data.cfg.contact }); if (withPw && data.pw?.salt && data.pw?.hash) { store.setPw(data.pw); r.pw = true; } }
+  if (kind === 'backup') { r.issued = store.mergeIssued(data.issued); if (data.cfg) store.setCfg({ operator: data.cfg.operator, contact: data.cfg.contact }); if (withPw && signed && data.pw?.salt && data.pw?.hash) { store.setPw(data.pw); r.pw = true; } }
   r.used = store.mergeUsed(data.used); r.revoked = store.mergeRevoked(data.revoked);
   return r;
 }
-// 사용 기록 QR: PCU1:<쪽>/<전체>:<사용 ID…>.<취소 ID…>:<서명>  (ID 8자, 영숫자 QR 모드)
+// 사용 기록 QR: PCU2:<쪽>/<전체>:<U/R+ID…>  (ID 8자, 영숫자 QR 모드)
+// v1.6.1: 공유 비밀키 서명을 없앰. 이 QR은 '사용됨/취소됨' 표시만 늘릴 수 있고(진단권을 새로 통과시키지는 못함), 관리자 로그인 상태에서만 읽음
 export const SYNC_PER_QR = 24; // 한 장 24개 → QR 버전 약 10 (카메라로 읽기 쉬운 밀도)
 const isId = (id) => /^[0-9A-HJKMNP-TV-Z]{8}$/.test(id);
 export async function makeSyncQrs(store, per = SYNC_PER_QR) {
@@ -183,14 +235,14 @@ export async function makeSyncQrs(store, per = SYNC_PER_QR) {
   const all = [...u, ...r], pages = [];
   for (let i = 0; i < Math.max(1, all.length); i += per) pages.push(all.slice(i, i + per));
   const out = [];
-  for (let i = 0; i < pages.length; i++) { const body = `PCU1:${i + 1}/${pages.length}:${pages[i].join('')}`; out.push(body + ':' + (await hmacHex(body)).slice(0, 12).toUpperCase()); }
+  for (let i = 0; i < pages.length; i++) out.push(`PCU2:${i + 1}/${pages.length}:${pages[i].join('')}`);
   return out;
 }
 export async function readSyncQr(text) {
-  const m = /^PCU1:(\d+)\/(\d+):((?:[UR][0-9A-HJKMNP-TV-Z]{8})*):([0-9A-F]{12})$/.exec(String(text || '').trim());
-  if (!m) return { ok: false, msg: '사용 기록 QR이 아니에요.' };
-  const body = `PCU1:${m[1]}/${m[2]}:${m[3]}`;
-  if ((await hmacHex(body)).slice(0, 12).toUpperCase() !== m[4]) return { ok: false, msg: '사용 기록 QR이 올바르지 않아요.' };
+  const t = String(text || '').trim();
+  if (t.startsWith('PCU1:')) return { ok: false, msg: '예전 버전의 사용 기록 QR이에요. 두 기기 모두 앱을 새로고침해 최신 버전으로 바꾼 뒤 다시 만들어 주세요.' };
+  const m = /^PCU2:(\d+)\/(\d+):((?:[UR][0-9A-HJKMNP-TV-Z]{8})*)$/.exec(t);
+  if (!m || +m[1] < 1 || +m[1] > +m[2]) return { ok: false, msg: '사용 기록 QR이 아니에요.' };
   const used = {}, revoked = {}, now = Date.now();
   for (const x of m[3].match(/.{9}/g) || []) (x[0] === 'U' ? (used[x.slice(1)] = { at: now, src: 'sync' }) : (revoked[x.slice(1)] = now));
   return { ok: true, page: +m[1], pages: +m[2], used, revoked };

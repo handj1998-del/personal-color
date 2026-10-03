@@ -2,7 +2,7 @@
 import { makeToken, tryLogin, lockState, makePwRecord, statusOf, fmtDay, ADMIN_IDLE_MS, LOCK_FAILS, randomId, makeBackup, readBackup, applyBackup, makeSyncQrs, stats, toCsv } from './ticket.js';
 import { renderCard, renderSheet, makePdf, SHEET, drawQr } from './qrcard.js';
 
-export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = () => {}, onCfg = () => {} }) {
+export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = () => {}, onCfg = () => {}, diag = {} }) {
   const PRINT_IDLE_MS = 15 * 60 * 1000;
   const A = { printing: false, authed: false, last: 0, idleMs: ADMIN_IDLE_MS, batch: [], idx: 0, tab: 'issue', pvList: [], busy: false, sync: [], syncIdx: 0, installEvt: null };
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); A.installEvt = e; });
@@ -191,6 +191,48 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
   $('btnSyncPrev').onclick = () => { if (!A.sync.length) return; A.syncIdx = (A.syncIdx - 1 + A.sync.length) % A.sync.length; drawSync(); };
   $('btnSyncNext').onclick = () => { if (!A.sync.length) return; A.syncIdx = (A.syncIdx + 1) % A.sync.length; drawSync(); };
   $('btnSyncScan').onclick = () => openSyncScan();
+  // v1.7: 기기 점검 — 카메라 3A(노출·화이트밸런스) 고정 지원, 얼굴 인식, 오프라인 저장 상태
+  const escH = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  async function runDiag() {
+    const out = $('diagOut'), btn = $('btnDiag'); out.hidden = false; out.innerHTML = '점검 중이에요… (카메라가 잠깐 켜져요)'; btn.disabled = true;
+    const rows = []; let verdict = '';
+    const yes = (b) => (b ? '✅ 지원' : '❌ 미지원');
+    let st = null;
+    try {
+      if (diag.appStream?.()) throw Object.assign(new Error('busy'), { name: 'Busy' });
+      if (!navigator.mediaDevices?.getUserMedia) throw Object.assign(new Error('none'), { name: 'NotFoundError' });
+      st = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'user' }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+      const t = st.getVideoTracks()[0]; const set = t.getSettings?.() || {}; let cap = {};
+      try { cap = t.getCapabilities?.() || {}; } catch {}
+      const wbM = cap.whiteBalanceMode || [], exM = cap.exposureMode || [];
+      const wbOk = wbM.includes('manual') && !!set.colorTemperature, exOk = exM.includes('manual') && !!set.exposureTime;
+      rows.push(['카메라', escH(t.label || '이름 없음') + ` (${set.width || '?'}×${set.height || '?'})`]);
+      rows.push(['색(화이트밸런스) 고정', yes(wbOk) + (wbM.length ? ` · 모드 ${escH(wbM.join('/'))}` : '') + (set.colorTemperature ? ` · 현재 ${set.colorTemperature}K` : '')]);
+      rows.push(['노출 고정', yes(exOk) + (exM.length ? ` · 모드 ${escH(exM.join('/'))}` : '') + (set.exposureTime ? ` · 현재 ${set.exposureTime}` : '')]);
+      let tried = '';
+      if (wbOk || exOk) {
+        const adv = {}; if (wbOk) { adv.whiteBalanceMode = 'manual'; adv.colorTemperature = set.colorTemperature; } if (exOk) { adv.exposureMode = 'manual'; adv.exposureTime = set.exposureTime; }
+        try { await t.applyConstraints({ advanced: [adv] }); tried = '✅ 실제 고정 성공'; const back = {}; if (wbOk) back.whiteBalanceMode = 'continuous'; if (exOk) back.exposureMode = 'continuous'; await t.applyConstraints({ advanced: [back] }).catch(() => {}); } catch { tried = '❌ 고정 시도 실패'; }
+        rows.push(['고정 시험', tried]);
+      }
+      verdict = wbOk && exOk && tried.startsWith('✅') ? '✅ 이 기기는 흰 종이 보정 뒤 노출·색을 고정할 수 있어요 (가장 정확).'
+        : (wbOk || exOk) && tried.startsWith('✅') ? '🟡 일부만 고정돼요. 보정한 뒤 같은 자리·조명에서 바로 촬영해 주세요.'
+        : '❌ 이 기기(브라우저)는 노출·색 고정을 지원하지 않아요. 보정한 뒤 같은 자리·조명에서 바로 촬영해 주세요.';
+    } catch (e) {
+      rows.push(['카메라', e.name === 'Busy' ? '진단 중인 카메라가 켜져 있어 점검을 건너뛰었어요.' : escH(diag.camErrMsg ? diag.camErrMsg(e) : e.name)]);
+    } finally { st?.getTracks().forEach((x) => x.stop()); }
+    // 얼굴 인식
+    let fs = diag.faceStatus?.() || 'unknown';
+    if (fs !== 'ready' && diag.loadFace) { await Promise.race([diag.loadFace(), new Promise((r) => setTimeout(r, 10000))]); fs = diag.faceStatus(); }
+    rows.push(['얼굴 자동 인식', { ready: '✅ 준비됨', loading: '⏳ 불러오는 중', failed: '❌ 불러오지 못함 (타원 가이드로 진행)', idle: '대기' }[fs] || fs]);
+    // 오프라인
+    const sw = await diag.swStatus?.().catch(() => null);
+    rows.push(['오프라인 저장', !sw ? '❌ 서비스 워커 없음 (HTTPS 주소에서만 동작)' : sw.pending ? '⏳ 준비 중' : `앱 파일 ${sw.core[0]}/${sw.core[1]} · 얼굴 인식 파일 ${sw.face[0]}/${sw.face[1]} · ${escH(sw.version)}` + (sw.core[0] === sw.core[1] && sw.face[0] === sw.face[1] ? ' ✅' : ' ⚠️')]);
+    try { const p = await navigator.storage?.persisted?.(); const est = await navigator.storage?.estimate?.(); rows.push(['저장소', (p ? '✅ 보호됨' : '보호 안 됨') + (est?.usage ? ` · 사용 ${(est.usage / 1048576).toFixed(1)}MB` : '')]); } catch {}
+    out.innerHTML = `<table>${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>${verdict ? `<p class="verdict">${verdict}</p>` : ''}<p class="sub">점검 ${new Date().toLocaleString('ko-KR', { hour12: false })} · 카메라는 점검 후 바로 꺼져요.</p>`;
+    btn.disabled = false;
+  }
+  $('btnDiag').onclick = runDiag;
   $('btnPersist').onclick = async () => { let ok = false; try { ok = await navigator.storage?.persist?.(); } catch {} toast(ok ? '저장소 보호를 켰어요.' : '브라우저가 허용하지 않았어요. 홈 화면에 추가(앱 설치)하면 보호돼요.', 4500); renderSettings(); };
   $('btnInstall').onclick = async () => { if (!A.installEvt) return; A.installEvt.prompt(); try { await A.installEvt.userChoice; } catch {} A.installEvt = null; renderSettings(); };
   $('issueExp').onchange = (e) => { $('issueDate').hidden = e.target.value !== 'date'; };

@@ -114,6 +114,7 @@ function regionsFromOval(W, H) {
 }
 
 // 메인 분석 함수
+export const DARK_BLOCK_L = 28, OVER_L = 76;
 export function analyzeImage(img, { landmarks = null, gains = null, calibrated = false, source = 'camera' } = {}) {
   const W = img.width, H = img.height;
   // v1.6: 사진 파일에는 카메라 흰 종이 보정값을 쓰지 않음 (다른 조명에서 찍은 사진이라 보정이 오히려 틀어짐)
@@ -124,6 +125,8 @@ export function analyzeImage(img, { landmarks = null, gains = null, calibrated =
   const skinLabs = []; for (const s of R.skin) circleLabs(img, s.x, s.y, s.r, gains, skinLabs, 500, clip);
   const skin = robustSkin(skinLabs);
   if (!skin) return { ok: false, reason: mono.mono ? 'mono' : 'noskin', mode: R.mode };
+  // v1.7: 너무 어두우면 색을 읽을 수 없어 결과 대신 다시 찍기를 안내
+  if (skin.L < DARK_BLOCK_L) return { ok: false, reason: 'dark', mode: R.mode, skinL: skin.L };
   // 눈동자
   let eye = null; const eyeLabs = [];
   if (R.eyes.length) for (const e of R.eyes) ringLabs(img, e.x, e.y, e.r * 0.4, e.r * 0.85, gains, eyeLabs);
@@ -146,6 +149,8 @@ export function analyzeImage(img, { landmarks = null, gains = null, calibrated =
   if (!eye) q *= 0.95;
   const h = hueDeg(skin.a, skin.b);
   if (h < 38 || h > 80 || skin.L < 42 || skin.L > 82 || skin.b < 6 || skin.b > 32) { q *= 0.75; notes.push('측정된 피부색이 일반적인 한국인 범위를 벗어나요. 조명이나 메이크업 영향일 수 있어요.'); }
+  // v1.7: 보정 없이 아주 밝게 찍히면(노출 과다) 명도가 실제보다 밝게 나옴
+  if (!calibrated && skin.L > OVER_L && !light.issues.some((i) => i.code === 'bright')) { q *= 0.85; notes.push('사진이 밝게(노출 과다) 찍혀 명도가 실제보다 밝게 나왔을 수 있어요. 직사광선·플래시·밝기 보정 없는 사진이 좋아요.'); }
   if (source === 'photo') { q *= 0.85; notes.push('사진 파일은 찍을 때의 조명·카메라 보정·필터를 알 수 없어 참고용으로 봐 주세요. 보정·필터 없는 자연광 정면 사진이 좋아요.'); }
   if (mono.mono) { q *= 0.5; notes.unshift('흑백·세피아처럼 색이 거의 없는 사진 같아요. 색 정보가 부족해 결과를 믿기 어려워요. 컬러 사진으로 다시 진단해 주세요.'); }
   q = Math.max(0.3, q);

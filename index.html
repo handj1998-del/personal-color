@@ -41,6 +41,7 @@
 </header>
 
 <main id="app">
+  <h1 class="sr-only">퍼스널컬러 진단</h1>
   <!-- 카메라 무대: 보정/촬영/드레이핑 화면에서 사용 -->
   <section class="stage" id="stage" aria-label="카메라 화면">
     <video id="video" playsinline muted autoplay></video>
@@ -67,7 +68,7 @@
         <text id="drapeTagR" class="drapetag"></text>
       </g>
     </svg>
-    <div class="stage-msg" id="stageMsg"></div>
+    <div class="stage-msg" id="stageMsgBox" hidden><span id="stageMsg"></span><button class="btn primary" id="btnStagePhoto" type="button" hidden>📁 사진 파일로 진단</button></div>
     <div class="meter" id="meter"></div>
     <div class="stage-tools">
       <button class="btn round" id="btnSwitch" type="button" title="카메라 전환" aria-label="카메라 전환">⇄</button>
@@ -90,6 +91,7 @@
         <li>한 번 접속한 뒤에는 인터넷 연결 없이도 동작해요.</li>
         <li>진단을 시작하려면 매장에서 받은 <b>진단권 QR</b>이 필요해요.</li>
       </ul>
+      <p class="offready" id="offReady" hidden></p>
       <p class="appver" id="appVer" aria-label="앱 버전"></p>
     </div>
 
@@ -185,6 +187,10 @@
           <button class="btn" id="btnInstall" type="button" hidden>홈 화면에 앱 설치</button>
         </div>
         <p class="sub">기록이 지워지지 않게 브라우저 메뉴에서 <b>홈 화면에 추가</b>(앱 설치)해서 쓰세요. 아이패드 사파리는 홈 화면에 추가하지 않으면 오래 안 쓸 때 기록이 지워질 수 있어요.</p>
+        <h3>기기 점검</h3>
+        <p class="sub">이 기기 카메라가 흰 종이 보정 뒤 노출·색 고정(3A 잠금)을 지원하는지, 오프라인 준비가 됐는지 확인해요. 점검하는 동안 카메라가 잠깐 켜져요.</p>
+        <button class="btn" id="btnDiag" type="button">카메라·오프라인 점검</button>
+        <div class="diag" id="diagOut" hidden></div>
         <h3>비밀번호 변경</h3>
         <div class="pwgrid">
           <label>현재 비밀번호 <input id="pwCur" type="password" inputmode="numeric" maxlength="12" autocomplete="off"></label>
@@ -312,7 +318,7 @@
           <button class="btn xl" id="btnBrowseR" type="button">오른쪽이 더 좋아요</button>
         </div>
       </div>
-      <div class="votes" id="voteSummary"></div>
+      <div class="votes" id="voteSummary" tabindex="0" role="region" aria-label="고객 선택 기록"></div>
       <div class="bigbtns">
         <button class="btn" id="btnPickSame" type="button">비슷해요 / 모르겠어요</button>
         <button class="btn primary xl" id="btnDrapeDone" type="button">최종 결과 보기</button>
@@ -322,12 +328,15 @@
     <!-- 최종 결과 -->
     <div class="screen" data-for="result">
       <div id="resultCard" class="card"></div>
-      <div class="bigbtns row">
-        <button class="btn primary xl" id="btnSavePng" type="button">결과 이미지 저장</button>
-        <button class="btn xl" id="btnSaveStory" type="button">스토리 이미지</button>
-        <button class="btn primary xl" id="btnResultQr" type="button">📱 휴대폰으로 받기</button>
-        <button class="btn xl" id="btnBackDrape" type="button">드레이핑 다시 보기</button>
-        <button class="btn danger xl" id="btnNextCustomer" type="button">다음 고객 (초기화)</button>
+      <div class="bigbtns row resbar">
+        <button class="btn primary xl" id="btnSavePng" type="button">결과 저장</button>
+        <button class="btn primary xl" id="btnResultQr" type="button">📱 휴대폰으로</button>
+        <button class="btn xl" id="btnResMore" type="button" aria-expanded="false" aria-controls="resMore" aria-haspopup="true">더보기 ▴</button>
+        <button class="btn danger xl" id="btnNextCustomer" type="button">다음 고객</button>
+        <div class="resmore" id="resMore" hidden role="group" aria-label="더보기">
+          <button class="btn" id="btnSaveStory" type="button">📸 스토리 이미지 (1080×1920)</button>
+          <button class="btn" id="btnBackDrape" type="button">↩ 드레이핑 다시 보기</button>
+        </div>
       </div>
     </div>
     <!-- 고객 휴대폰: 결과 보기 (읽기 전용, #r=… 주소) -->

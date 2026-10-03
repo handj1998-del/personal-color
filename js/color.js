@@ -102,7 +102,8 @@ export function computeFeatures({ skin, hair, eye }, { calibrated = true } = {})
   const zL = clamp((skin.L - KR.skinL) / (calibrated ? KR.skinLsd : KR.skinLsdUncal));
   let l = zL;
   if (hair) { const k = calibrated ? 0.7 : 0.5; l = k * zL + (1 - k) * clamp((hair.L - KR.hairL) / KR.hairLsd); }
-  if (!calibrated) l = clamp(l, 1.5);
+  // v1.7: 딱 잘라 ±1.5로 막으면 밝은 사진들이 모두 같은 값(1.5)이 되어 구분이 사라짐 → 부드럽게 눌러 순서는 유지
+  if (!calibrated) l = 1.5 * Math.tanh(l / 1.5);
   const darkL = Math.min(hair ? hair.L : 99, eye ? eye.L : 99);
   const contrast = darkL < 99 ? skin.L - darkL : KR.contrast;
   const zC = clamp((C - KR.C) / KR.Csd), zCt = clamp((contrast - KR.contrast) / KR.contrastSd);

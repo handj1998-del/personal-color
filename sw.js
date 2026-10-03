@@ -1,6 +1,6 @@
 // 오프라인 캐시 (외부 요청 없음). 버전을 올리면 새 파일로 교체됨
 // 버전 정보는 여기 한 곳에만 둠 (첫 화면 아래 표시도 이 값을 읽음)
-const VERSION = 'pc-v1.6.3', BUILD_DATE = '2026-10-03';
+const VERSION = 'pc-v1.7.0', BUILD_DATE = '2026-10-04';
 const CORE = [
   './', 'index.html', 'app.css', 'manifest.webmanifest', 'icons/icon.svg',
   'js/app.js', 'js/color.js', 'js/analyzer.js', 'js/seasons.js', 'js/face.js', 'js/card.js', 'js/style.js', 'js/ticket.js', 'js/qr.js', 'js/admin.js', 'js/qrcard.js', 'js/share.js', 'vendor/qr/jsqr.mjs', 'vendor/qr/qrcode.mjs',
@@ -13,6 +13,8 @@ const OPTIONAL = [
   'vendor/mediapipe/wasm/vision_wasm_nosimd_internal.wasm', // v1.6: SIMD 미지원 기기에서도 오프라인 얼굴 인식
   'models/face_landmarker.task',
 ];
+// 오프라인 얼굴 인식에 꼭 필요한 파일 (SIMD/비SIMD 중 기기에 맞는 것 하나만 쓰지만 둘 다 저장)
+const FACE_FILES = OPTIONAL.filter((u) => u.startsWith('vendor/') || u.startsWith('models/'));
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then(async (c) => {
     // cache:'reload' → 브라우저 HTTP 캐시(최대 10분)를 건너뛰고 서버에서 새로 받아 버전이 섞이지 않게 함
@@ -25,7 +27,15 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 // 첫 화면의 버전 표시: 지금 실행 중인 서비스 워커(=앱 파일 캐시)의 버전을 알려 줌
-self.addEventListener('message', (e) => { if (e.data?.type === 'version') e.ports?.[0]?.postMessage({ version: VERSION, date: BUILD_DATE }); });
+self.addEventListener('message', (e) => {
+  if (e.data?.type === 'version') e.ports?.[0]?.postMessage({ version: VERSION, date: BUILD_DATE });
+  // v1.7: 첫 화면 '오프라인 준비' 표시용 — 이 버전 캐시에 앱 파일·얼굴 인식 파일이 다 있는지
+  if (e.data?.type === 'status') e.waitUntil(caches.open(VERSION).then(async (c) => {
+    const have = async (list) => (await Promise.all(list.map((u) => c.match(new URL(u, self.registration.scope).href, { ignoreSearch: true })))).map(Boolean);
+    const core = await have(CORE), face = await have(FACE_FILES);
+    e.ports?.[0]?.postMessage({ version: VERSION, core: [core.filter(Boolean).length, CORE.length], face: [face.filter(Boolean).length, FACE_FILES.length] });
+  }));
+});
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.endsWith('/sw.js')) return;

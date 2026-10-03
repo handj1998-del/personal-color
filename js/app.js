@@ -32,19 +32,25 @@ function toast(msg, ms = 3200) { const t = $('toast'); t.textContent = msg; t.hi
 function ask(msg) {
   return new Promise((res) => {
     const prev = document.activeElement;
-    $('modalMsg').textContent = msg; $('modal').hidden = false; $('modalYes').focus();
-    const esc = (e) => { if (e.key === 'Escape') done(false); };
-    const done = (v) => { $('modal').hidden = true; $('modalYes').onclick = $('modalNo').onclick = null; document.removeEventListener('keydown', esc); prev?.focus?.(); res(v); };
+    $('modalMsg').textContent = msg; $('modal').hidden = false; setInert(true); $('modalYes').focus();
+    // v1.7: 창이 열린 동안 뒤 화면은 inert(키보드·스크린리더 접근 막음), Tab은 창 안에서만 돎
+    const esc = (e) => {
+      if (e.key === 'Escape') done(false);
+      else if (e.key === 'Tab') { const f = [$('modalYes'), $('modalNo')]; const i = f.indexOf(document.activeElement); e.preventDefault(); f[(i + (e.shiftKey ? f.length - 1 : 1)) % f.length].focus(); }
+    };
+    const done = (v) => { $('modal').hidden = true; setInert(false); $('modalYes').onclick = $('modalNo').onclick = null; document.removeEventListener('keydown', esc); prev?.focus?.(); res(v); };
     $('modalYes').onclick = () => done(true); $('modalNo').onclick = () => done(false);
     document.addEventListener('keydown', esc);
   });
 }
+function setInert(on) { for (const el of document.querySelectorAll('body > header, body > main, #updBar')) { el.inert = on; if (on) el.setAttribute('aria-hidden', 'true'); else el.removeAttribute('aria-hidden'); } }
 function renderSteps() {
   const idx = STEP_LABELS.findIndex(([k]) => k === S.screen || (S.screen === 'analyzing' && k === 'auto'));
   $('steps').innerHTML = S.screen === 'home' || S.screen === 'shared' || S.screen.startsWith('admin') ? '' : STEP_LABELS.map(([k, l], i) => `<span class="${i < idx ? 'done' : i === idx ? 'cur' : ''}">${l}</span>`).join('');
 }
 async function go(screen) {
   const my = ++seq;
+  if (!$('resMore').hidden) setMore(false);
   S.screen = screen; document.body.dataset.screen = screen;
   document.querySelectorAll('.screen').forEach((el) => (el.hidden = el.dataset.for !== screen));
   renderSteps();
@@ -89,7 +95,7 @@ async function startCamera() {
     return true;
   } catch (e) {
     stream = null;
-    camFail(e.name === 'NotAllowedError' ? '카메라 권한이 거부됐어요. 브라우저 주소창의 권한 설정에서 카메라를 허용해 주세요.' : '카메라를 켤 수 없어요 (' + e.name + ').');
+    camFail(camErrMsg(e));
     return false;
   } finally { cameraBusy = false; }
 }
@@ -98,13 +104,22 @@ function stopCamera() {
   if (stream) stream.getTracks().forEach((t) => t.stop());
   stream = null; streamFacing = null; video.pause(); video.srcObject = null; $('meter').innerHTML = '';
 }
-// 카메라를 못 쓸 때: 화면에 맞는 대안 안내 (진단권 화면은 코드 입력, 나머지는 사진 파일)
+// v1.7: 카메라 오류를 한국어로 (오류 이름을 그대로 보여 주지 않음)
+function camErrMsg(e) {
+  const n = e?.name || '';
+  if (n === 'NotAllowedError' || n === 'SecurityError') return '카메라 권한이 거부됐어요. 브라우저 주소창(또는 설정 앱)의 권한에서 카메라를 허용해 주세요.';
+  if (n === 'NotFoundError' || n === 'OverconstrainedError' || n === 'DevicesNotFoundError') return '이 기기에서 카메라를 찾을 수 없어요.';
+  if (n === 'NotReadableError' || n === 'TrackStartError' || n === 'AbortError') return '다른 앱이 카메라를 쓰고 있거나 카메라를 켤 수 없어요. 다른 앱을 닫고 다시 시도해 주세요.';
+  return '카메라를 켤 수 없어요. 기기를 다시 시작하거나 사진 파일로 진단해 주세요.';
+}
+// 카메라를 못 쓸 때: 화면에 맞는 대안 안내 (진단권 화면은 코드 입력, 나머지는 바로 누를 수 있는 [사진 파일로 진단] 버튼)
 function camFail(why) {
   if (S.screen === 'ticket') { stageMsg(why + ' 아래 입력칸에 카드의 코드를 입력해 주세요.'); ticketMsg('📷 카메라를 쓸 수 없어요. 카드 아래쪽 코드를 입력해 주세요.', 'bad'); }
   else if (S.screen === 'adminScan') { stageMsg(why); $('syncMsg').textContent = '카메라를 쓸 수 없어요. 사용 기록 파일로 옮겨 주세요.'; }
-  else stageMsg(why + ' 사진 파일로 진단해 주세요.');
+  else stageMsg(why + ' 아래 버튼으로 사진 파일로 진단할 수 있어요.', true);
 }
-function stageMsg(m) { $('stageMsg').textContent = m; $('stageMsg').hidden = !m; }
+function stageMsg(m, photoBtn = false) { $('stageMsg').textContent = m; $('stageMsgBox').hidden = !m; $('btnStagePhoto').hidden = !(m && photoBtn); }
+$('btnStagePhoto').onclick = () => { S.drapeOnly = false; $('fileInput').click(); };
 $('btnSwitch').onclick = async () => {
   if (SCAN_SCREENS.has(S.screen)) { qrFacing = qrFacing === 'user' ? 'environment' : 'user'; try { localStorage.setItem('pcqr.qrFacing', qrFacing); } catch {} }
   else facing = facing === 'user' ? 'environment' : 'user';
@@ -208,6 +223,8 @@ function gate(after) {
   S.after = after; loadFace();
   const a = store.active();
   if (S.resume && a) { S.ticket = a.id; toast('진행 중인 진단으로 이어서 해요.'); return proceed(); }
+  // v1.7: 같은 고객이 사진 선택을 취소했거나 사진이 실패해 다시 누른 경우 → 이미 확인한 진단권(관리자 허가 포함)으로 계속
+  if (S.ticket && a && a.id === S.ticket && !a.done) return proceed();
   if (store.takePass()) { const id = 'PASS' + Date.now().toString(36).toUpperCase(); store.markUsed(id, Date.now(), 'admin'); store.startSession(id, 'admin', Date.now(), { drapeOnly: S.drapeOnly }); S.ticket = id; toast('관리자 허가로 QR 없이 1회 진단을 시작해요.'); return proceed(); }
   $('ticketCode').value = ''; ticketMsg('QR 코드를 찾는 중이에요…'); go('ticket');
 }
@@ -218,6 +235,7 @@ function proceed(fromTicket = false) {
 function renderHome() {
   $('btnResume').hidden = !store.active();
   $('passDot').hidden = !store.passInfo(); // 직원만 알아보는 작은 점 (고객 화면에 횟수 표시 안 함)
+  if (!SHARED_BOOT && document.readyState === 'complete') renderOffline();
 }
 function renderConsentInfo() {
   const c = store.cfg(); $('cfgOperatorTxt').textContent = c.operator || '매장'; $('cfgContactTxt').textContent = c.contact ? '문의 ' + c.contact : '매장 직원에게 문의해 주세요';
@@ -325,7 +343,10 @@ $('fileInput').onchange = async (e) => {
   const f = e.target.files?.[0]; e.target.value = '';
   if (!f) return;
   let bmp;
-  try { bmp = await createImageBitmap(f); } catch { return toast('이미지를 열 수 없어요.'); }
+  try { bmp = await createImageBitmap(f); } catch {
+    const heic = /hei[cf]/i.test(f.type) || /\.hei[cf]$/i.test(f.name || '');
+    return toast(heic ? 'HEIC(고효율) 사진은 이 브라우저에서 열 수 없어요. JPG로 저장하거나 화면을 캡처한 사진으로 다시 골라 주세요.' : '이미지를 열 수 없어요. JPG·PNG 사진을 골라 주세요.', 5000);
+  }
   const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
   work.width = Math.round(bmp.width * k); work.height = Math.round(bmp.height * k);
   const ctx = work.getContext('2d', { willReadFrequently: true }); ctx.drawImage(bmp, 0, 0, work.width, work.height); bmp.close?.();
@@ -357,7 +378,7 @@ async function runAnalysis(img, source) {
   if (res.ok && source === 'photo') keepPhoto(img, res.faceBox);
   // 이미지 데이터 폐기
   img.data.fill(0); wipeWork();
-  if (!res.ok) { toast(res.reason === 'mono' ? '흑백·세피아 사진은 피부색을 읽을 수 없어요. 컬러 사진으로 진단해 주세요.' : source === 'photo' ? '얼굴 피부를 찾지 못했어요. 얼굴이 크게 나온 정면 사진을 써 주세요.' : '피부색을 찾지 못했어요. 얼굴을 타원 안에 맞추고 다시 촬영해 주세요.', 4500); return go(source === 'photo' ? 'consent' : 'capture'); }
+  if (!res.ok) { toast(res.reason === 'dark' ? '너무 어두워서 피부색을 읽을 수 없어요. 밝은 곳에서 다시 찍거나 더 밝은 사진을 골라 주세요.' : res.reason === 'mono' ? '흑백·세피아 사진은 피부색을 읽을 수 없어요. 컬러 사진으로 진단해 주세요.' : source === 'photo' ? '얼굴 피부를 찾지 못했어요. 얼굴이 크게 나온 정면 사진을 써 주세요.' : '피부색을 찾지 못했어요. 얼굴을 타원 안에 맞추고 다시 촬영해 주세요.', 4500); return go('capture'); } // v1.7: 사진 실패도 촬영 화면(사진 다시 고르기 버튼 있음)으로
   S.auto = res; S.votes = []; S.roundIdx = 0; S.rounds = null; S.faceShape = null;
   renderAuto(); go('auto');
 }
@@ -484,38 +505,38 @@ function resultPane(tab) {
   const r = S.final, s = r.season, fid = faceId(), F = fid ? FACE_SHAPES[fid] : null;
   if (tab === 'lip') {
     const L = LIPS[r.id];
-    return `<h3>💄 추천 립 컬러</h3><div class="palette lips">${L.best.map((c) => sw(c, 'lip')).join('')}</div>
-      <p class="tip">${L.tip}</p><h3>피하면 좋은 립 컬러</h3><div class="palette lips avoid">${L.avoid.map((c) => sw(c, 'lip sm')).join('')}</div>`;
+    return `<h2 class="sec">💄 추천 립 컬러</h2><div class="palette lips">${L.best.map((c) => sw(c, 'lip')).join('')}</div>
+      <p class="tip">${L.tip}</p><h2 class="sec">피하면 좋은 립 컬러</h2><div class="palette lips avoid">${L.avoid.map((c) => sw(c, 'lip sm')).join('')}</div>`;
   }
   if (tab === 'glasses') {
     const G = FRAMES[r.id];
-    return `<h3>👓 안경테 컬러 <small>${s.name}</small></h3><div class="palette frames">${G.best.map((c) => sw(c, 'frame')).join('')}</div>
+    return `<h2 class="sec">👓 안경테 컬러 <small>${s.name}</small></h2><div class="palette frames">${G.best.map((c) => sw(c, 'frame')).join('')}</div>
       <p class="tip">${G.tip} <span class="sub">피하면 좋은 테: ${G.avoid}</span></p>
-      <h3>안경테 모양 <small>${F ? F.name : ''}</small></h3>
+      <h2 class="sec">안경테 모양 <small>${F ? F.name : ''}</small></h2>
       ${F ? `<div class="glist">${F.glasses.map((g) => `<div class="gitem" data-g="${g}">${glassesSvg(g)}<span>${GLASS_SHAPES[g]}</span></div>`).join('')}</div>
       <p class="tip">${F.glassesTip} <span class="sub">피하면 좋은 모양: ${F.glassesAvoid}</span></p>` : needFace()}`;
   }
   if (tab === 'hair') {
     const HC = HAIR_COLORS[r.id], g = S.hairGender === 'm' ? 'm' : 'f', H = F ? HAIR_REC[fid][g] : null, hc = HC.best[1].hex;
-    return `<h3>💇 헤어 컬러 추천 <small>${s.name}</small></h3><div class="palette hairc">${HC.best.map((c) => sw(c, 'hairc')).join('')}</div>
+    return `<h2 class="sec">💇 헤어 컬러 추천 <small>${s.name}</small></h2><div class="palette hairc">${HC.best.map((c) => sw(c, 'hairc')).join('')}</div>
       <p class="tip">${HC.tip} <span class="sub">피하면 좋은 색: ${HC.avoid.map((c) => c.name).join(', ')}</span></p>
-      <div class="hairhead"><h3>헤어스타일 추천 <small>${F ? F.name : ''}</small></h3><div class="seg" role="group" aria-label="스타일 기준">${Object.entries(HAIR_GENDERS).map(([k, l]) => `<button type="button" class="segbtn ${g === k ? 'on' : ''}" data-hg="${k}" aria-pressed="${g === k}">${l}</button>`).join('')}</div></div>
+      <div class="hairhead"><h2 class="sec">헤어스타일 추천 <small>${F ? F.name : ''}</small></h2><div class="seg" role="group" aria-label="스타일 기준">${Object.entries(HAIR_GENDERS).map(([k, l]) => `<button type="button" class="segbtn ${g === k ? 'on' : ''}" data-hg="${k}" aria-pressed="${g === k}">${l}</button>`).join('')}</div></div>
       ${H ? `<div class="hlist">${H.styles.map((id) => `<div class="hitem" data-h="${id}">${hairSvg(id, hc)}<b>${HAIR_STYLES[id].name}</b><span class="hlen">${HAIR_STYLES[id].len}</span><span class="hdesc">${HAIR_STYLES[id].desc}</span></div>`).join('')}</div>
       <p class="tip">${H.tip} <span class="sub">피하면 좋은 스타일: ${H.avoid}</span></p>` : needFace()}`;
   }
   if (tab === 'brow') {
     const browColor = s.tone === '웜' ? '#6b4a32' : '#4d4646';
     const colorTip = s.tone === '웜' ? '눈썹 색은 브라운·카키 브라운처럼 따뜻한 갈색이 자연스러워요.' : '눈썹 색은 그레이 브라운·애쉬 브라운처럼 차가운 갈색이 자연스러워요.';
-    return `<h3>✏️ 눈썹 모양 추천 <small>${F ? F.name : ''}</small></h3>
+    return `<h2 class="sec">✏️ 눈썹 모양 추천 <small>${F ? F.name : ''}</small></h2>
       ${F ? `<div class="browrec">${browSvg(F.brow, browColor)}<div><b id="browName">${F.browName}</b><p>${F.browTip}</p></div></div>` : needFace()}
       <p class="tip">${colorTip}</p>`;
   }
   return `<p class="desc">${s.desc}</p>
-    <h3>베스트 컬러</h3><div class="palette">${s.best.map((c) => sw(c)).join('')}</div>
-    <h3>피하면 좋은 컬러</h3><div class="palette avoid">${s.avoid.map((c) => sw(c, 'sm')).join('')}</div>
-    <div class="tipsgrid"><div><h4>💄 메이크업</h4><p>${s.makeup}</p></div><div><h4>💇 헤어</h4><p>${s.hair}</p></div><div><h4>💍 액세서리</h4><p>${s.acc}</p></div></div>
-    <h3>👚 코디 색 조합</h3><div class="outfits">${OUTFITS[r.id].map((x) => `<div class="outfit"><div class="ofsw" aria-hidden="true"><i style="background:${x.top.hex}"></i><i style="background:${x.bottom.hex}"></i><i class="pt" style="background:${x.point.hex}"></i></div><b>${x.title}</b><span>상의 ${x.top.name} · 하의 ${x.bottom.name} · 포인트 ${x.point.name}</span></div>`).join('')}</div>
-    <div class="celebs"><h4>⭐ 같은 타입으로 자주 언급되는 예시 <small>(참고)</small></h4><p>${CELEBS[r.id].join(', ')}</p><p class="sub">${CELEB_NOTE}</p></div>`;
+    <h2 class="sec">베스트 컬러</h2><div class="palette">${s.best.map((c) => sw(c)).join('')}</div>
+    <h2 class="sec">피하면 좋은 컬러</h2><div class="palette avoid">${s.avoid.map((c) => sw(c, 'sm')).join('')}</div>
+    <div class="tipsgrid"><div><h3>💄 메이크업</h3><p>${s.makeup}</p></div><div><h3>💇 헤어</h3><p>${s.hair}</p></div><div><h3>💍 액세서리</h3><p>${s.acc}</p></div></div>
+    <h2 class="sec">👚 코디 색 조합</h2><div class="outfits">${OUTFITS[r.id].map((x) => `<div class="outfit"><div class="ofsw" aria-hidden="true"><i style="background:${x.top.hex}"></i><i style="background:${x.bottom.hex}"></i><i class="pt" style="background:${x.point.hex}"></i></div><b>${x.title}</b><span>상의 ${x.top.name} · 하의 ${x.bottom.name} · 포인트 ${x.point.name}</span></div>`).join('')}</div>
+    <div class="celebs"><h3>⭐ 같은 타입으로 자주 언급되는 예시 <small>(참고)</small></h3><p>${CELEBS[r.id].join(', ')}</p><p class="sub">${CELEB_NOTE}</p></div>`;
 }
 // 관리자 설정 '얼굴형 측정값 보기' (직원 확인용): 측정 비율·표준점수·후보 확률
 function faceDebug() {
@@ -539,26 +560,54 @@ function renderResult() {
     ${faceDebug()}
     ${r.changed && S.auto ? `<p class="note">드레이핑 선택을 반영해 자동 분석(${SEASONS[S.auto.cls.top[0].id].name})과 다른 결과가 나왔어요.</p>` : ''}
     <p class="note">카메라와 조명에 따라 달라질 수 있는 추정 결과이고, 추천은 일반적인 스타일링 가이드에 따른 제안이에요. 실제 옷·안경·화장품·헤어를 대 보며 함께 확인해 주세요.</p>`;
+  prepCards();
 }
 for (const id of ['resultCard', 'sharedCard']) {
   $(id).addEventListener('click', (e) => { if (!S.final) return; const hg = e.target.closest('[data-hg]'); if (hg) { S.hairGender = hg.dataset.hg; renderResult(); return; } const t = e.target.closest('[data-rtab]'); if (!t) return; S.resTab = t.dataset.rtab; renderResult(); });
   $(id).addEventListener('change', (e) => { if (e.target.id !== 'selFace' || !S.final) return; S.faceShape = e.target.value || null; renderResult(); });
 }
+// v1.7: 결과 버튼 '더보기' (스토리 이미지·드레이핑 다시 보기)
+function setMore(open) { $('resMore').hidden = !open; $('btnResMore').setAttribute('aria-expanded', String(open)); $('btnResMore').textContent = open ? '닫기 ▾' : '더보기 ▴'; if (open) $('resMore').querySelector('button').focus(); }
+$('btnResMore').onclick = (e) => { e.stopPropagation(); setMore($('resMore').hidden); };
+$('resMore').addEventListener('click', () => setMore(false));
+document.addEventListener('click', (e) => { if (!$('resMore').hidden && !e.target.closest('#resMore, #btnResMore')) setMore(false); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('resMore').hidden) { setMore(false); $('btnResMore').focus(); } });
 $('btnSharedPng').onclick = () => saveCard('full');
 $('btnSharedStory').onclick = () => saveCard('story');
 $('btnSavePng').onclick = () => saveCard('full');
 $('btnSaveStory').onclick = () => saveCard('story');
 // v1.6: 'full' = 긴 결과 카드, 'story' = 인스타 스토리 크기(1080×1920). 둘 다 결과 보기 QR·주소 포함 (얼굴 사진 없음)
-async function saveCard(kind = 'full') {
-  if (!S.final) return;
+// v1.7: 결과 이미지를 미리 만들어 둠 → 버튼을 누르는 즉시 공유 시트를 엶 (iPhone은 누른 뒤 시간이 걸리면 공유를 막음)
+const cardKey = () => (S.final ? [S.final.id, S.final.second?.id, S.final.conf.level, S.final.method, S.final.date, faceId(), S.hairGender].join('|') : '');
+let cardCache = { key: '', files: {} }, prepTimer = null;
+async function makeCardFile(kind) {
   const data = { ...S.final, faceId: faceId(), hairGender: S.hairGender, url: resultUrl(), appUrl: location.origin + location.pathname, outfits: OUTFITS[S.final.id], celebs: CELEBS[S.final.id] };
   const cv = document.createElement('canvas'); (kind === 'story' ? renderStoryCanvas : renderCardCanvas)(cv, data);
   const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
   cv.width = cv.height = 1;
   const name = `퍼스널컬러_${S.final.season.short}_${S.final.date.replaceAll('.', '')}${kind === 'story' ? '_스토리' : ''}.png`;
-  const file = new File([blob], name, { type: 'image/png' });
+  return new File([blob], name, { type: 'image/png' });
+}
+function prepCards() {
+  clearTimeout(prepTimer);
+  prepTimer = setTimeout(async () => {
+    const key = cardKey(); if (!key || cardCache.key === key) return;
+    const files = {};
+    for (const kind of ['full', 'story']) { files[kind] = await makeCardFile(kind); if (cardKey() !== key) return; }
+    cardCache = { key, files };
+  }, 400);
+}
+function dropCards() { clearTimeout(prepTimer); cardCache = { key: '', files: {} }; }
+async function saveCard(kind = 'full') {
+  if (!S.final) return;
+  const ready = cardCache.key === cardKey() ? cardCache.files[kind] : null;
+  const file = ready || (await makeCardFile(kind)), blob = file;
+  const name = file.name;
   if (/iPhone|iPad|Android/i.test(navigator.userAgent) && navigator.canShare?.({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: '퍼스널컬러 결과' }); return; } catch (e) { if (e.name === 'AbortError') return; }
+    try { await navigator.share({ files: [file], title: '퍼스널컬러 결과' }); return; } catch (e) {
+      if (e.name === 'AbortError') return;
+      // 공유가 막혔으면(사용자 동작 시간 초과 등) 아래 다운로드로 대신 저장
+    }
   }
   const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000); toast('결과 이미지를 저장했어요.');
@@ -600,7 +649,7 @@ $('btnIdleContinue').onclick = () => touchIdle();
 // ---------- 초기화 ----------
 async function resetAll(confirmFirst = true) {
   if (confirmFirst && S.screen !== 'home' && !(await ask('지금까지의 진단 내용을 모두 지우고 처음으로 돌아갈까요?'))) return;
-  stopCamera(); wipeWork(); clearPhoto();
+  stopCamera(); wipeWork(); clearPhoto(); dropCards(); setMore(false);
   S = fresh();
   $('chkConsent').checked = false; $('btnConsentCam').disabled = $('btnConsentPhoto').disabled = true;
   $('rqView').hidden = true; hideIdle(); if (location.hash) history.replaceState(null, '', location.pathname + location.search);
@@ -624,7 +673,7 @@ document.addEventListener('visibilitychange', async () => {
 window.addEventListener('resize', () => setOverlay(S.screen));
 
 // 테스트용 읽기 전용 상태 노출
-const admin = initAdmin({ $, go, toast, ask, store, getScreen: () => S.screen, openSyncScan, onCfg: () => wake() });
+const admin = initAdmin({ $, go, toast, ask, store, getScreen: () => S.screen, openSyncScan, onCfg: () => wake(), diag: { camErrMsg, faceStatus, loadFace, swStatus, appStream: () => stream } });
 window.__pc = { get state() { return S; }, get stream() { return stream; }, faceStatus, admin, store, setIdle: (ms, cd) => { IDLE.ms = ms; IDLE.cd = cd ?? IDLE.cd; IDLE.last = Date.now(); }, get wakeLock() { return wakeLock; }, encodeResult, decodeResult, resultUrl: () => (S.final ? resultUrl() : null), saveCard };
 
 // ---------- 기기 시계 확인 (시계를 뒤로 돌리면 관리자에게 경고) ----------
@@ -661,6 +710,23 @@ async function appVersion() {
   return null;
 }
 if (!SHARED_BOOT) appVersion().then((v) => { if (v) { const n = v.version.replace(/^pc-/, ''); $('appVer').textContent = `버전 ${n} · ${v.date}`; $('appVer').dataset.version = v.version; } });
+// v1.7: 첫 화면 '오프라인 준비' 표시 (서비스 워커 캐시에 앱 파일·얼굴 인식 파일이 다 있는지)
+async function swStatus() {
+  const sw = navigator.serviceWorker; if (!sw) return null;
+  const reg = await sw.getRegistration().catch(() => null); const w = sw.controller || reg?.active; if (!w) return reg ? { pending: true } : null;
+  return new Promise((res) => { const ch = new MessageChannel(); const end = (v) => { clearTimeout(t); ch.port1.onmessage = null; ch.port1.close(); res(v); }; const t = setTimeout(() => end(null), 3000); ch.port1.onmessage = (e) => end(e.data); w.postMessage({ type: 'status' }, [ch.port2]); });
+}
+let offTimer = null;
+async function renderOffline() {
+  clearTimeout(offTimer); const el = $('offReady');
+  const st = await swStatus().catch(() => null);
+  if (!st) { el.hidden = true; return; }
+  el.hidden = false;
+  if (st.pending || st.core[0] < st.core[1]) { el.className = 'offready'; el.textContent = '⏳ 오프라인 준비 중… (인터넷 연결을 유지해 주세요)'; offTimer = setTimeout(renderOffline, 3000); return; }
+  if (st.face[0] < st.face[1]) { el.className = 'offready warn'; el.textContent = `⚠️ 오프라인 준비: 앱은 완료, 얼굴 인식 파일 ${st.face[0]}/${st.face[1]} — 인터넷에 연결된 상태로 다시 열어 주세요`; return; }
+  el.className = 'offready ok'; el.textContent = '✅ 오프라인 준비 완료 (인터넷 없이도 진단할 수 있어요)';
+}
+if (!SHARED_BOOT) { window.addEventListener('load', () => setTimeout(renderOffline, 800)); navigator.serviceWorker?.addEventListener('controllerchange', () => setTimeout(renderOffline, 500)); }
 $('btnUpdReload').onclick = () => location.reload(); // 진행 중이던 진단은 첫 화면의 [이어하기]로 계속
 $('btnUpdLater').onclick = () => { $('updBar').hidden = true; };
 if (!openShared()) go('home');

@@ -78,7 +78,7 @@ export function robustDark(labs, frac = 0.35) {
 // ---------- 한국인 기준값 (카메라 sRGB, 흰 종이 보정 기준) ----------
 // 한국인 볼·이마 피부: L* 약 58–70, a* 약 7–15, b* 약 13–22, 색상각 약 50–68°
 export const KR = {
-  skinL: 63, skinLsd: 5,
+  skinL: 63, skinLsd: 5, skinLsdUncal: 9,
   hue: 58.5, huesd: 5,
   b: 17, bsd: 4,
   C: 19.5, Csd: 3.5,
@@ -89,16 +89,20 @@ export const KR = {
 const clamp = (x, m = 2.5) => Math.max(-m, Math.min(m, x));
 
 // 특징값: w(웜+/쿨-), l(밝음+/깊음-), c(선명+/부드러움-)
-export function computeFeatures({ skin, hair, eye }) {
+// calibrated=false(흰 종이 보정 없음)이면 피부 밝기(L*)가 카메라 자동 노출·사진 밝기에 크게 좌우되므로 명도 축을 약하게 씀
+export function computeFeatures({ skin, hair, eye }, { calibrated = true } = {}) {
   const h = hueDeg(skin.a, skin.b), C = chroma(skin.a, skin.b);
   const zh = clamp((h - KR.hue) / KR.huesd), zb = clamp((skin.b - KR.b) / KR.bsd);
-  let w = 0.65 * zh + 0.35 * zb, wWeight = 1;
+  // v1.6: 색상각(hue)은 볼의 붉은기(홍조·블러셔)가 늘면 작아져 쿨로 읽힘 → 노란기(b*) 비중을 높임 (예전 0.65·hue + 0.35·b*)
+  let w = 0.4 * zh + 0.6 * zb, wWeight = 1;
   if (hair) { w += 0.12 * clamp((hair.b - KR.hairB) / KR.hairBsd); wWeight += 0.12; }
   if (eye) { w += 0.08 * clamp((eye.b - KR.eyeB) / KR.eyeBsd); wWeight += 0.08; }
   w /= wWeight;
-  const zL = clamp((skin.L - KR.skinL) / KR.skinLsd);
+  // v1.6: 보정 없으면 피부 L* 기준 폭을 넓히고(5→9) 머리카락 비중을 높이며 ±1.5로 제한 (예전엔 밝은 사진이 거의 모두 '라이트'로 쏠림)
+  const zL = clamp((skin.L - KR.skinL) / (calibrated ? KR.skinLsd : KR.skinLsdUncal));
   let l = zL;
-  if (hair) l = 0.7 * zL + 0.3 * clamp((hair.L - KR.hairL) / KR.hairLsd);
+  if (hair) { const k = calibrated ? 0.7 : 0.5; l = k * zL + (1 - k) * clamp((hair.L - KR.hairL) / KR.hairLsd); }
+  if (!calibrated) l = clamp(l, 1.5);
   const darkL = Math.min(hair ? hair.L : 99, eye ? eye.L : 99);
   const contrast = darkL < 99 ? skin.L - darkL : KR.contrast;
   const zC = clamp((C - KR.C) / KR.Csd), zCt = clamp((contrast - KR.contrast) / KR.contrastSd);

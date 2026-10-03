@@ -74,6 +74,18 @@ export function paperRgb(img) {
   return rgb;
 }
 
+// 흑백·세피아(단색) 사진 감지: 이미지 전체에서 채도 상위 1%도 낮으면 색 정보가 없는 사진
+export function monoCheck(img) {
+  const { data, width: W, height: H } = img; const Cs = [];
+  const step = Math.max(1, Math.floor(Math.sqrt(W * H / 6000)));
+  for (let y = 0; y < H; y += step) for (let x = 0; x < W; x += step) {
+    const [L, a, b] = pixLab(data, (y * W + x) * 4, null); if (L > 15 && L < 95) Cs.push(chroma(a, b));
+  }
+  if (Cs.length < 50) return { mono: false, p99: NaN };
+  Cs.sort((p, q) => p - q); const p99 = Cs[Math.floor(Cs.length * 0.99)];
+  return { mono: p99 < 16, p99 };
+}
+
 // 영역 정의 (랜드마크 또는 타원 가이드)
 function regionsFromLandmarks(lm, W, H) {
   const P = (i) => ({ x: lm[i].x * W, y: lm[i].y * H });
@@ -81,8 +93,10 @@ function regionsFromLandmarks(lm, W, H) {
   const faceW = dist(P(234), P(454)), faceH = dist(P(10), P(152));
   const top = P(10), chin = P(152);
   const up = { x: (top.x - chin.x) / faceH, y: (top.y - chin.y) / faceH };
+  // v1.6: 이마 3곳 + 볼 위쪽 2곳 + 턱 1곳. 예전의 볼 아래·팔자 근처(205·425)는 블러셔·홍조와 겹쳐 붉은기가 과하게 잡혀 뺌
   const skin = [P(151), P(108), P(337)].map((p) => ({ ...p, r: faceW * 0.055 }))
-    .concat([P(50), P(280), P(205), P(425)].map((p) => ({ ...p, r: faceW * 0.06 })));
+    .concat([P(50), P(280)].map((p) => ({ ...p, r: faceW * 0.06 })))
+    .concat([{ ...P(199), r: faceW * 0.05 }]);
   const eyes = [];
   if (lm.length >= 478) for (const [c, e] of [[468, 469], [473, 474]]) { const cc = P(c); const r = dist(cc, P(e)); if (r > 1.5) eyes.push({ ...cc, r }); }
   const hairC = { x: top.x + up.x * faceH * 0.16, y: top.y + up.y * faceH * 0.16 };
@@ -102,11 +116,14 @@ function regionsFromOval(W, H) {
 // 메인 분석 함수
 export function analyzeImage(img, { landmarks = null, gains = null, calibrated = false, source = 'camera' } = {}) {
   const W = img.width, H = img.height;
+  // v1.6: 사진 파일에는 카메라 흰 종이 보정값을 쓰지 않음 (다른 조명에서 찍은 사진이라 보정이 오히려 틀어짐)
+  if (source === 'photo') { gains = null; calibrated = false; }
   const R = landmarks ? regionsFromLandmarks(landmarks, W, H) : regionsFromOval(W, H);
+  const mono = source === 'photo' ? monoCheck(img) : { mono: false };
   const clip = { n: 0, c: 0 };
   const skinLabs = []; for (const s of R.skin) circleLabs(img, s.x, s.y, s.r, gains, skinLabs, 500, clip);
   const skin = robustSkin(skinLabs);
-  if (!skin) return { ok: false, reason: 'noskin', mode: R.mode };
+  if (!skin) return { ok: false, reason: mono.mono ? 'mono' : 'noskin', mode: R.mode };
   // 눈동자
   let eye = null; const eyeLabs = [];
   if (R.eyes.length) for (const e of R.eyes) ringLabs(img, e.x, e.y, e.r * 0.4, e.r * 0.85, gains, eyeLabs);
@@ -116,7 +133,7 @@ export function analyzeImage(img, { landmarks = null, gains = null, calibrated =
   let hair = null; const hairLabs = boxLabs(img, R.hair.x, R.hair.y, R.hair.w, R.hair.h, gains, [], 600).filter((p) => p[0] < skin.L - 22);
   if (hairLabs.length > 40) { const d = robustDark(hairLabs, 0.7); if (d) hair = d; }
 
-  const feat = computeFeatures({ skin, hair, eye });
+  const feat = computeFeatures({ skin, hair, eye }, { calibrated });
   const cls = classify(feat);
   const cast = estimateCast(img, gains, R.faceBox);
   const light = lightCheck({ faceL: skin.L, castA: cast.reliable ? cast.a : 0, castB: cast.reliable ? cast.b : 0, clipFrac: clip.n ? clip.c / clip.n : 0, calibrated });
@@ -129,7 +146,12 @@ export function analyzeImage(img, { landmarks = null, gains = null, calibrated =
   if (!eye) q *= 0.95;
   const h = hueDeg(skin.a, skin.b);
   if (h < 38 || h > 80 || skin.L < 42 || skin.L > 82 || skin.b < 6 || skin.b > 32) { q *= 0.75; notes.push('측정된 피부색이 일반적인 한국인 범위를 벗어나요. 조명이나 메이크업 영향일 수 있어요.'); }
+  if (source === 'photo') { q *= 0.85; notes.push('사진 파일은 찍을 때의 조명·카메라 보정·필터를 알 수 없어 참고용으로 봐 주세요. 보정·필터 없는 자연광 정면 사진이 좋아요.'); }
+  if (mono.mono) { q *= 0.5; notes.unshift('흑백·세피아처럼 색이 거의 없는 사진 같아요. 색 정보가 부족해 결과를 믿기 어려워요. 컬러 사진으로 다시 진단해 주세요.'); }
   q = Math.max(0.3, q);
   const conf = confidence(cls, q);
-  return { ok: true, mode: R.mode, source, skin, eye, hair, feat, cls, conf, quality: q, light, cast, notes, calibrated };
+  if (mono.mono) { conf.level = 'low'; conf.label = '낮음'; }
+  // 드레이핑 오버레이 위치용 얼굴 틀 (숫자만, 이미지 아님)
+  const fb = R.faceBox, faceBox = { cx: fb.cx, cy: fb.cy, rx: fb.rx, ry: fb.ry, W, H };
+  return { ok: true, mode: R.mode, source, skin, eye, hair, feat, cls, conf, quality: q, light, cast, notes, calibrated, mono: !!mono.mono, faceBox };
 }

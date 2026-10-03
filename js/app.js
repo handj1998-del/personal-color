@@ -1,8 +1,8 @@
 import { whiteBalanceFromPaper, applyDrape, classify, confidence, labToRgb, PROTOTYPES, WARM, lightCheck } from './color.js';
 import { analyzeImage, ovalGeom, paperGeom, paperRgb, estimateCast } from './analyzer.js';
-import { SEASONS, SEASON_ORDER, drapeRounds } from './seasons.js';
+import { SEASONS, SEASON_ORDER, drapeRounds, OUTFITS, CELEBS, CELEB_NOTE } from './seasons.js';
 import { loadFace, detectFace, faceStatus } from './face.js';
-import { renderCardCanvas } from './card.js';
+import { renderCardCanvas, renderStoryCanvas } from './card.js';
 import { createStore, admit, STORAGE_PREFIX, readSyncQr } from './ticket.js';
 import { drawQr } from './qrcard.js';
 import { encodeResult, decodeResult, RESULT_RE } from './share.js';
@@ -19,7 +19,7 @@ const SCAN_SCREENS = new Set(['ticket', 'adminScan']);
 const NO_IDLE = new Set(['home', 'shared']); // 고객 무동작 자동 초기화 제외 화면 (관리자는 별도 자동 로그아웃)
 const STEP_LABELS = [['consent', '동의'], ['ticket', '진단권'], ['calib', '보정'], ['capture', '촬영'], ['auto', '분석'], ['drape', '드레이핑'], ['result', '결과']];
 
-const fresh = () => ({ screen: 'home', after: null, resume: false, ticket: null, wb: null, auto: null, votes: [], roundIdx: 0, rounds: null, browse: { L: 'spring_light', R: 'summer_light', i: 0 }, drapeTab: 'rounds', final: null, drapeOnly: false, faceShape: null, resTab: 'color', hairGender: 'f' });
+const fresh = () => ({ screen: 'home', after: null, resume: false, ticket: null, wb: null, auto: null, votes: [], roundIdx: 0, rounds: null, browse: { L: 'spring_light', R: 'summer_light', i: 0 }, drapeTab: 'rounds', final: null, drapeOnly: false, faceShape: null, resTab: 'color', hairGender: 'f', photo: null });
 let S = fresh();
 let stream = null, facing = 'user', streamFacing = null, meterTimer = null, cameraBusy = false, seq = 0;
 // QR 확인 화면은 뒤 카메라를 먼저 사용 (⇄로 바꾸면 이 기기에서 기억)
@@ -31,9 +31,12 @@ const work = $('work');
 function toast(msg, ms = 3200) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), ms); }
 function ask(msg) {
   return new Promise((res) => {
-    $('modalMsg').textContent = msg; $('modal').hidden = false;
-    const done = (v) => { $('modal').hidden = true; $('modalYes').onclick = $('modalNo').onclick = null; res(v); };
+    const prev = document.activeElement;
+    $('modalMsg').textContent = msg; $('modal').hidden = false; $('modalYes').focus();
+    const esc = (e) => { if (e.key === 'Escape') done(false); };
+    const done = (v) => { $('modal').hidden = true; $('modalYes').onclick = $('modalNo').onclick = null; document.removeEventListener('keydown', esc); prev?.focus?.(); res(v); };
     $('modalYes').onclick = () => done(true); $('modalNo').onclick = () => done(false);
+    document.addEventListener('keydown', esc);
   });
 }
 function renderSteps() {
@@ -45,8 +48,10 @@ async function go(screen) {
   S.screen = screen; document.body.dataset.screen = screen;
   document.querySelectorAll('.screen').forEach((el) => (el.hidden = el.dataset.for !== screen));
   renderSteps();
-  const needCam = CAMERA_SCREENS.has(screen);
-  document.body.classList.toggle('has-stage', needCam);
+  const photoDrape = screen === 'drape' && !!S.photo; // v1.6: 사진으로 진단했으면 드레이핑을 사진 위에 겹쳐 보여 줌 (카메라 안 씀)
+  document.body.classList.toggle('photo-drape', photoDrape);
+  const needCam = CAMERA_SCREENS.has(screen) && !photoDrape;
+  document.body.classList.toggle('has-stage', needCam || photoDrape);
   if (needCam) { if (stream && streamFacing !== wantFacing(screen)) stopCamera(); await startCamera(); if (my !== seq) return; } else stopCamera();
   setOverlay(screen);
   if (SCAN_SCREENS.has(screen) && stream) startScan(); else stopScan();
@@ -54,8 +59,8 @@ async function go(screen) {
   if (screen === 'consent') renderConsentInfo();
   touchIdle();
   if (screen === 'calib') renderCalibStatus();
-  if (screen === 'capture') $('captureCalib').textContent = S.wb ? '✅ 흰 종이 보정 적용 중' : '⚠️ 보정 없이 측정해요 (조명 색의 영향을 받을 수 있어요)';
-  if (screen === 'drape') renderDrape();
+  if (screen === 'capture') $('captureCalib').textContent = S.wb ? (S.wb.locked ? '✅ 흰 종이 보정 적용 중 (카메라 노출·색 고정)' : '✅ 흰 종이 보정 적용 중 — 보정할 때와 같은 자리·조명에서 바로 촬영해 주세요') : '⚠️ 보정 없이 측정해요 (조명 색의 영향을 받을 수 있어요)';
+  if (screen === 'drape') { if (photoDrape) stageMsg(''); renderDrape(); }
   window.scrollTo(0, 0); $('panel').scrollTop = 0;
 }
 
@@ -79,6 +84,7 @@ async function startCamera() {
     const st = stream.getVideoTracks()[0]?.getSettings?.() || {};
     const mirror = (st.facingMode || streamFacing) === 'user';
     $('stage').classList.toggle('mirror', mirror);
+    if (S.wb?.locked) S.wb.locked = false; // 카메라가 다시 켜지면 노출·색 고정이 풀림
     stageMsg(''); setOverlay(S.screen); startMeter();
     return true;
   } catch (e) {
@@ -115,9 +121,13 @@ function wipeWork() { const ctx = work.getContext('2d'); ctx.clearRect(0, 0, wor
 
 // ---------- 오버레이 ----------
 function setOverlay(screen) {
-  const W = video.videoWidth || 1280, H = video.videoHeight || 720, svg = $('overlay');
+  const ph = screen === 'drape' && S.photo ? S.photo : null;
+  const W = ph ? ph.W : video.videoWidth || 1280, H = ph ? ph.H : video.videoHeight || 720, svg = $('overlay');
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  const o = ovalGeom(W, H);
+  // 사진 드레이핑은 사진 전체가 보이게(meet), 카메라는 화면을 꽉 채움(slice)
+  svg.setAttribute('preserveAspectRatio', ph ? 'xMidYMid meet' : 'xMidYMid slice');
+  // 사진이면 얼굴 인식 틀(턱 위치)에 맞춰 드레이프를 놓음
+  const o = ph ? { cx: ph.face.cx, cy: ph.face.cy, rx: ph.face.rx, ry: ph.face.ry * 1.06 } : ovalGeom(W, H);
   for (const id of ['ovalHole', 'ovalLine']) { const e = $(id); e.setAttribute('cx', o.cx); e.setAttribute('cy', o.cy); e.setAttribute('rx', o.rx); e.setAttribute('ry', o.ry); }
   const mr = svg.querySelector('#ovalMask rect'); mr.setAttribute('x', -W); mr.setAttribute('y', -H); mr.setAttribute('width', 3 * W); mr.setAttribute('height', 3 * H);
   const p = paperGeom(W, H); const pr = $('paperRect'); pr.setAttribute('x', p.x); pr.setAttribute('y', p.y); pr.setAttribute('width', p.s); pr.setAttribute('height', p.s);
@@ -135,15 +145,23 @@ function setOverlay(screen) {
   cl.setAttribute('x', -W); cl.setAttribute('y', -H); cl.setAttribute('width', W + W / 2); cl.setAttribute('height', 3 * H);
   cr.setAttribute('x', W / 2); cr.setAttribute('y', -H); cr.setAttribute('width', 1.5 * W); cr.setAttribute('height', 3 * H);
   const dv = $('drapeDivider'); dv.setAttribute('x1', W / 2); dv.setAttribute('x2', W / 2); dv.setAttribute('y1', top - 10); dv.setAttribute('y2', 2 * H);
-  const ty = Math.min(H - 24, side + (H - side) / 2 + 14);
-  $('drapeTagL').setAttribute('x', W * 0.25); $('drapeTagR').setAttribute('x', W * 0.75);
+  // v1.6: 이름표를 '화면에 실제로 보이는 영역' 기준으로 배치 (세로 화면에서 slice로 양옆이 잘려 '랄', '쿨 핑'처럼 보이던 문제)
+  const vis = visibleBox(W, H, !ph), fs = Math.round(Math.min(vis.h * 0.05, vis.w * 0.06));
+  const ty = Math.min(vis.y + vis.h - fs * 0.6, side + (H - side) / 2 + 14);
+  $('drapeTagL').setAttribute('x', vis.x + vis.w * 0.25); $('drapeTagR').setAttribute('x', vis.x + vis.w * 0.75);
   $('drapeTagL').setAttribute('y', ty); $('drapeTagR').setAttribute('y', ty);
-  $('drapeTagL').style.fontSize = $('drapeTagR').style.fontSize = Math.round(H * 0.05) + 'px';
+  $('drapeTagL').style.fontSize = $('drapeTagR').style.fontSize = fs + 'px';
+}
+// viewBox(W×H) 중 무대 화면에 보이는 부분 (slice: 넘치는 쪽이 잘림, meet: 전부 보임 + 여백)
+function visibleBox(W, H, slice) {
+  const st = $('stage'), sw = st.clientWidth || W, sh = st.clientHeight || H;
+  const k = slice ? Math.max(sw / W, sh / H) : Math.min(sw / W, sh / H), w = sw / k, h = sh / k;
+  return slice ? { x: (W - w) / 2, y: (H - h) / 2, w, h } : { x: (W - w) / 2, y: (H - h) / 2, w, h };
 }
 function fillOf(f) { return f === 'gold' ? 'url(#gGold)' : f === 'silver' ? 'url(#gSilver)' : f; }
 function setDrape(left, right, tagL, tagR) {
   // 화면 기준 왼쪽/오른쪽. 전면 카메라(거울 모드)에서도 화면 기준으로 맞춤
-  const mirror = $('stage').classList.contains('mirror');
+  const mirror = !S.photo && $('stage').classList.contains('mirror');
   $('overlay').classList.toggle('unmirror', mirror);
   $('drapeL').setAttribute('fill', fillOf(left)); $('drapeR').setAttribute('fill', fillOf(right ?? left));
   $('drapeDivider').style.display = right ? '' : 'none';
@@ -265,7 +283,7 @@ function renderCalibStatus() {
   const st = $('calibStatus');
   if (!S.wb) { st.className = 'status'; st.textContent = '보정 안 함'; $('btnCalibClear').hidden = true; $('btnCalibNext').textContent = '보정 없이 다음'; return; }
   st.className = 'status ok';
-  st.textContent = `✅ 보정 완료 — 원래 조명: ${S.wb.castChroma < 4 ? '거의 중립' : castName(S.wb.paperLab) + ' (치우침 ' + S.wb.castChroma.toFixed(1) + ')'}`;
+  st.textContent = `✅ 보정 완료 — 원래 조명: ${S.wb.castChroma < 4 ? '거의 중립' : castName(S.wb.paperLab) + ' (치우침 ' + S.wb.castChroma.toFixed(1) + ')'}` + (S.wb.locked ? ' · 카메라 노출·색 고정됨' : ' · 조명·자세를 바꾸지 말고 바로 촬영해 주세요');
   $('btnCalibClear').hidden = false; $('btnCalibNext').textContent = '다음: 얼굴 촬영';
 }
 $('btnCalib').onclick = () => {
@@ -277,10 +295,23 @@ $('btnCalib').onclick = () => {
     const m = { dark: '종이가 너무 어둡게 보여요. 더 밝은 곳에서 다시 해 주세요.', clipped: '종이가 너무 밝아 하얗게 날아갔어요. 빛을 조금 줄이거나 종이를 기울여 주세요.', notwhite: '흰 종이가 아닌 것 같아요. 사각형 안을 흰 종이로 가득 채워 주세요.' };
     return toast(m[wb.problem] || '보정에 실패했어요. 다시 시도해 주세요.', 4500);
   }
-  S.wb = { gains: wb.gains, paperLab: wb.paperLab, castChroma: wb.castChroma };
+  S.wb = { gains: wb.gains, paperLab: wb.paperLab, castChroma: wb.castChroma, locked: false };
   renderCalibStatus(); toast('흰 종이 보정을 적용했어요.');
+  // v1.6: 보정한 순간의 노출·화이트밸런스를 고정해 촬영 때 카메라가 다시 바꾸지 않게 함 (지원 기기만)
+  lock3A(true).then((ok) => { if (S.wb) { S.wb.locked = ok; renderCalibStatus(); } });
 };
-$('btnCalibClear').onclick = () => { S.wb = null; renderCalibStatus(); };
+// 카메라 자동 노출·자동 화이트밸런스 고정/해제 (MediaStreamTrack 이미지 캡처 확장, 주로 안드로이드 크롬)
+async function lock3A(on) {
+  const t = stream?.getVideoTracks?.()[0]; if (!t?.getCapabilities) return false;
+  let cap, st; try { cap = t.getCapabilities() || {}; st = t.getSettings() || {}; } catch { return false; }
+  const adv = {}, mode = on ? 'manual' : 'continuous';
+  // 고정할 때는 지금 값(색온도·노출 시간)을 알 수 있을 때만 수동으로 바꿈 (값 없이 수동 전환하면 기기마다 동작이 달라 위험)
+  if (cap.whiteBalanceMode?.includes(mode) && (!on || st.colorTemperature)) { adv.whiteBalanceMode = mode; if (on) adv.colorTemperature = st.colorTemperature; }
+  if (cap.exposureMode?.includes(mode) && (!on || st.exposureTime)) { adv.exposureMode = mode; if (on) adv.exposureTime = st.exposureTime; }
+  if (!adv.whiteBalanceMode && !adv.exposureMode) return false;
+  try { await t.applyConstraints({ advanced: [adv] }); return !!on; } catch { return false; }
+}
+$('btnCalibClear').onclick = () => { if (S.wb?.locked) lock3A(false); S.wb = null; renderCalibStatus(); };
 $('btnCalibNext').onclick = () => go('capture');
 $('btnBackCalib').onclick = () => go('calib');
 
@@ -302,6 +333,11 @@ $('fileInput').onchange = async (e) => {
   stopCamera();
   await runAnalysis(img, 'photo');
 };
+function keepPhoto(img, fb) {
+  const cv = $('photo'); cv.width = img.width; cv.height = img.height; cv.getContext('2d').putImageData(img, 0, 0);
+  S.photo = { W: img.width, H: img.height, face: fb };
+}
+function clearPhoto() { const cv = $('photo'); if (cv) { cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); cv.width = cv.height = 1; } S.photo = null; document.body.classList.remove('photo-drape'); }
 async function runAnalysis(img, source) {
   await go('analyzing');
   $('analyzingMsg').textContent = faceStatus() === 'ready' ? '분석 중이에요…' : '얼굴 인식 준비 중이에요…';
@@ -310,12 +346,18 @@ async function runAnalysis(img, source) {
   let lm = null;
   try { lm = await detectFace(work); } catch { lm = null; }
   $('analyzingMsg').textContent = '분석 중이에요…';
-  let res = analyzeImage(img, { landmarks: lm, gains: S.wb?.gains || null, calibrated: !!S.wb, source });
+  // 사진 파일에는 카메라 흰 종이 보정을 적용하지 않음 (analyzeImage 안에서도 한 번 더 막음)
+  const useWb = source !== 'photo' && S.wb;
+  let res = analyzeImage(img, { landmarks: lm, gains: useWb ? S.wb.gains : null, calibrated: !!useWb, source });
   if (res.ok && lm) { try { res.face = classifyFaceShape(faceMetrics(lm, img.width, img.height)); } catch { res.face = null; } }
   if (!lm && source === 'photo') res.notes?.unshift('사진에서 얼굴을 찾지 못해 사진 가운데 영역으로 측정했어요. 얼굴이 가운데 오는 정면 사진을 써 주세요.');
+  if (res.ok && useWb && !S.wb.locked) res.notes?.push('이 기기는 카메라 노출·색 자동 조절을 고정할 수 없어요. 보정한 뒤 조명이나 자리가 바뀌었다면 보정을 다시 해 주세요.');
+  // v1.6: 사진 진단이면 드레이핑용으로 사진을 화면(메모리)에만 잠시 둠. 저장·전송 없음, 처음으로/다음 고객/자동 초기화 때 지움
+  clearPhoto();
+  if (res.ok && source === 'photo') keepPhoto(img, res.faceBox);
   // 이미지 데이터 폐기
   img.data.fill(0); wipeWork();
-  if (!res.ok) { toast(source === 'photo' ? '얼굴 피부를 찾지 못했어요. 얼굴이 크게 나온 정면 사진을 써 주세요.' : '피부색을 찾지 못했어요. 얼굴을 타원 안에 맞추고 다시 촬영해 주세요.', 4500); return go(source === 'photo' ? 'consent' : 'capture'); }
+  if (!res.ok) { toast(res.reason === 'mono' ? '흑백·세피아 사진은 피부색을 읽을 수 없어요. 컬러 사진으로 진단해 주세요.' : source === 'photo' ? '얼굴 피부를 찾지 못했어요. 얼굴이 크게 나온 정면 사진을 써 주세요.' : '피부색을 찾지 못했어요. 얼굴을 타원 안에 맞추고 다시 촬영해 주세요.', 4500); return go(source === 'photo' ? 'consent' : 'capture'); }
   S.auto = res; S.votes = []; S.roundIdx = 0; S.rounds = null; S.faceShape = null;
   renderAuto(); go('auto');
 }
@@ -340,7 +382,7 @@ function renderAuto() {
     ${[...r.light.issues.map((i) => i.msg), ...r.notes].map((n) => `<p class="warn">⚠️ ${n}</p>`).join('')}
     <p class="honest">카메라와 조명에 따라 달라지는 <b>추정 결과</b>예요. 드레이핑으로 직접 비교하면 더 정확해져요.</p>`;
 }
-$('btnRetake').onclick = () => go('capture');
+$('btnRetake').onclick = () => { clearPhoto(); go('capture'); };
 $('btnToDrape').onclick = () => go('drape');
 $('btnToResult').onclick = () => { buildFinal(); go('result'); };
 
@@ -353,6 +395,7 @@ function renderDrape() {
     if (S.browse.L === S.browse.R) S.browse.R = SEASON_ORDER.find((x) => x !== S.browse.L);
   }
   $('tabRounds').classList.toggle('on', S.drapeTab === 'rounds'); $('tabBrowse').classList.toggle('on', S.drapeTab === 'browse');
+  $('tabRounds').setAttribute('aria-selected', S.drapeTab === 'rounds'); $('tabBrowse').setAttribute('aria-selected', S.drapeTab === 'browse');
   $('drapeRoundsBox').hidden = S.drapeTab !== 'rounds'; $('drapeBrowseBox').hidden = S.drapeTab !== 'browse';
   $('selL').innerHTML = seasonOptions(S.browse.L); $('selR').innerHTML = seasonOptions(S.browse.R);
   if (S.drapeTab === 'rounds') renderRound(); else { $('btnPickSame').hidden = true; renderBrowse(); }
@@ -470,7 +513,9 @@ function resultPane(tab) {
   return `<p class="desc">${s.desc}</p>
     <h3>베스트 컬러</h3><div class="palette">${s.best.map((c) => sw(c)).join('')}</div>
     <h3>피하면 좋은 컬러</h3><div class="palette avoid">${s.avoid.map((c) => sw(c, 'sm')).join('')}</div>
-    <div class="tipsgrid"><div><h4>💄 메이크업</h4><p>${s.makeup}</p></div><div><h4>💇 헤어</h4><p>${s.hair}</p></div><div><h4>💍 액세서리</h4><p>${s.acc}</p></div></div>`;
+    <div class="tipsgrid"><div><h4>💄 메이크업</h4><p>${s.makeup}</p></div><div><h4>💇 헤어</h4><p>${s.hair}</p></div><div><h4>💍 액세서리</h4><p>${s.acc}</p></div></div>
+    <h3>👚 코디 색 조합</h3><div class="outfits">${OUTFITS[r.id].map((x) => `<div class="outfit"><div class="ofsw" aria-hidden="true"><i style="background:${x.top.hex}"></i><i style="background:${x.bottom.hex}"></i><i class="pt" style="background:${x.point.hex}"></i></div><b>${x.title}</b><span>상의 ${x.top.name} · 하의 ${x.bottom.name} · 포인트 ${x.point.name}</span></div>`).join('')}</div>
+    <div class="celebs"><h4>⭐ 같은 타입으로 자주 언급되는 예시 <small>(참고)</small></h4><p>${CELEBS[r.id].join(', ')}</p><p class="sub">${CELEB_NOTE}</p></div>`;
 }
 // 관리자 설정 '얼굴형 측정값 보기' (직원 확인용): 측정 비율·표준점수·후보 확률
 function faceDebug() {
@@ -499,20 +544,25 @@ for (const id of ['resultCard', 'sharedCard']) {
   $(id).addEventListener('click', (e) => { if (!S.final) return; const hg = e.target.closest('[data-hg]'); if (hg) { S.hairGender = hg.dataset.hg; renderResult(); return; } const t = e.target.closest('[data-rtab]'); if (!t) return; S.resTab = t.dataset.rtab; renderResult(); });
   $(id).addEventListener('change', (e) => { if (e.target.id !== 'selFace' || !S.final) return; S.faceShape = e.target.value || null; renderResult(); });
 }
-$('btnSharedPng').onclick = () => $('btnSavePng').onclick();
-$('btnSavePng').onclick = async () => {
+$('btnSharedPng').onclick = () => saveCard('full');
+$('btnSharedStory').onclick = () => saveCard('story');
+$('btnSavePng').onclick = () => saveCard('full');
+$('btnSaveStory').onclick = () => saveCard('story');
+// v1.6: 'full' = 긴 결과 카드, 'story' = 인스타 스토리 크기(1080×1920). 둘 다 결과 보기 QR·주소 포함 (얼굴 사진 없음)
+async function saveCard(kind = 'full') {
   if (!S.final) return;
-  const cv = document.createElement('canvas'); renderCardCanvas(cv, { ...S.final, faceId: faceId(), hairGender: S.hairGender });
+  const data = { ...S.final, faceId: faceId(), hairGender: S.hairGender, url: resultUrl(), appUrl: location.origin + location.pathname, outfits: OUTFITS[S.final.id], celebs: CELEBS[S.final.id] };
+  const cv = document.createElement('canvas'); (kind === 'story' ? renderStoryCanvas : renderCardCanvas)(cv, data);
   const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
   cv.width = cv.height = 1;
-  const name = `퍼스널컬러_${S.final.season.short}_${S.final.date.replaceAll('.', '')}.png`;
+  const name = `퍼스널컬러_${S.final.season.short}_${S.final.date.replaceAll('.', '')}${kind === 'story' ? '_스토리' : ''}.png`;
   const file = new File([blob], name, { type: 'image/png' });
   if (/iPhone|iPad|Android/i.test(navigator.userAgent) && navigator.canShare?.({ files: [file] })) {
     try { await navigator.share({ files: [file], title: '퍼스널컬러 결과' }); return; } catch (e) { if (e.name === 'AbortError') return; }
   }
   const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000); toast('결과 이미지를 저장했어요.');
-};
+}
 
 // ---------- 결과를 고객 휴대폰으로 (서버 없이: 주소의 # 뒤에 결과 코드만 담음, #은 서버로 전송되지 않음) ----------
 const resultUrl = () => location.origin + location.pathname + '#r=' + encodeResult(S.final, faceId(), S.hairGender);
@@ -550,7 +600,7 @@ $('btnIdleContinue').onclick = () => touchIdle();
 // ---------- 초기화 ----------
 async function resetAll(confirmFirst = true) {
   if (confirmFirst && S.screen !== 'home' && !(await ask('지금까지의 진단 내용을 모두 지우고 처음으로 돌아갈까요?'))) return;
-  stopCamera(); wipeWork();
+  stopCamera(); wipeWork(); clearPhoto();
   S = fresh();
   $('chkConsent').checked = false; $('btnConsentCam').disabled = $('btnConsentPhoto').disabled = true;
   $('rqView').hidden = true; hideIdle(); if (location.hash) history.replaceState(null, '', location.pathname + location.search);
@@ -575,7 +625,7 @@ window.addEventListener('resize', () => setOverlay(S.screen));
 
 // 테스트용 읽기 전용 상태 노출
 const admin = initAdmin({ $, go, toast, ask, store, getScreen: () => S.screen, openSyncScan, onCfg: () => wake() });
-window.__pc = { get state() { return S; }, get stream() { return stream; }, faceStatus, admin, store, setIdle: (ms, cd) => { IDLE.ms = ms; IDLE.cd = cd ?? IDLE.cd; IDLE.last = Date.now(); }, get wakeLock() { return wakeLock; }, encodeResult, decodeResult, resultUrl: () => (S.final ? resultUrl() : null) };
+window.__pc = { get state() { return S; }, get stream() { return stream; }, faceStatus, admin, store, setIdle: (ms, cd) => { IDLE.ms = ms; IDLE.cd = cd ?? IDLE.cd; IDLE.last = Date.now(); }, get wakeLock() { return wakeLock; }, encodeResult, decodeResult, resultUrl: () => (S.final ? resultUrl() : null), saveCard };
 
 // ---------- 기기 시계 확인 (시계를 뒤로 돌리면 관리자에게 경고) ----------
 if (!SHARED_BOOT) { store.touchSeen(); setInterval(() => store.touchSeen(), 60000); }

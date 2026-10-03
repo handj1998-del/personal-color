@@ -204,12 +204,11 @@ const store = createStore();
 // 순서: 동의 → (이어하기 / 관리자 허가 / 진단권 QR) → 보정·드레이핑. 카메라는 동의 후에만 켬
 function startFlow(drapeOnly) { S.drapeOnly = drapeOnly; S.resume = false; go('consent'); }
 function resumeFlow() { const a = store.active(); if (!a) { renderHome(); return toast('이어서 할 진단이 없어요.'); } S.drapeOnly = !!a.drapeOnly; S.resume = true; go('consent'); }
-async function gate(after) {
+function gate(after) {
   S.after = after; loadFace();
   const a = store.active();
   if (S.resume && a) { S.ticket = a.id; toast('진행 중인 진단으로 이어서 해요.'); return proceed(); }
-  // v1.6.1: 관리자 허가는 개인키 서명을 검증한 뒤에만 사용
-  if (store.passInfo() && (await store.takePass())) { const id = 'PASS' + Date.now().toString(36).toUpperCase(); store.markUsed(id, Date.now(), 'admin'); store.startSession(id, 'admin', Date.now(), { drapeOnly: S.drapeOnly }); S.ticket = id; toast('관리자 허가로 QR 없이 1회 진단을 시작해요.'); return proceed(after === 'photo'); } // 서명 확인(비동기) 뒤에는 파일 선택 창을 바로 못 여는 브라우저가 있어 사진은 버튼을 한 번 더 누르게 함
+  if (store.takePass()) { const id = 'PASS' + Date.now().toString(36).toUpperCase(); store.markUsed(id, Date.now(), 'admin'); store.startSession(id, 'admin', Date.now(), { drapeOnly: S.drapeOnly }); S.ticket = id; toast('관리자 허가로 QR 없이 1회 진단을 시작해요.'); return proceed(); }
   $('ticketCode').value = ''; ticketMsg('QR 코드를 찾는 중이에요…'); go('ticket');
 }
 function proceed(fromTicket = false) {
@@ -665,3 +664,5 @@ if (!SHARED_BOOT) appVersion().then((v) => { if (v) { const n = v.version.replac
 $('btnUpdReload').onclick = () => location.reload(); // 진행 중이던 진단은 첫 화면의 [이어하기]로 계속
 $('btnUpdLater').onclick = () => { $('updBar').hidden = true; };
 if (!openShared()) go('home');
+// v1.6.2: v1.6.1에서 불러 둔 발급 키(개인키)는 더 이상 쓰지 않으므로 기기에서 지움
+try { globalThis.indexedDB?.deleteDatabase('pc-keys'); } catch {}

@@ -54,19 +54,19 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
   }
   function preview() {
     const t = A.batch[A.idx]; if (!t) return;
-    const cv = renderCard(document.createElement('canvas'), t, 200);
+    const cv = renderCard(document.createElement('canvas'), t, 200, store.cfg().operator);
     $('cardPreview').src = cv.toDataURL('image/png'); cv.width = cv.height = 1;
     $('cardIdx').textContent = `${A.idx + 1} / ${A.batch.length} · No. ${t.id}`;
   }
   const step = (d) => { if (!A.batch.length) return; A.idx = (A.idx + d + A.batch.length) % A.batch.length; preview(); };
   function download(blob, name) { const u = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000); }
   const toBlob = (cv, type, q) => new Promise((r) => cv.toBlob(r, type, q));
-  async function cardPng() { const t = A.batch[A.idx]; if (!t) return; const cv = renderCard(document.createElement('canvas'), t, 300); download(await toBlob(cv, 'image/png'), `진단권_${t.id}.png`); cv.width = 1; }
+  async function cardPng() { const t = A.batch[A.idx]; if (!t) return; const cv = renderCard(document.createElement('canvas'), t, 300, store.cfg().operator); download(await toBlob(cv, 'image/png'), `진단권_${t.id}.png`); cv.width = 1; }
   const chunks = (list) => { const out = []; const per = SHEET.cols * SHEET.rows; for (let i = 0; i < list.length; i += per) out.push(list.slice(i, i + per)); return out; };
   async function pdf(list = A.pvList.length ? A.pvList : A.batch) {
     if (!list.length) return toast('먼저 진단권을 발급해 주세요.');
     const pages = [];
-    for (const ch of chunks(list)) { const cv = renderSheet(document.createElement('canvas'), ch, 300); const b = await toBlob(cv, 'image/jpeg', 0.92); pages.push({ bytes: new Uint8Array(await b.arrayBuffer()), w: cv.width, h: cv.height }); cv.width = 1; }
+    for (const ch of chunks(list)) { const cv = renderSheet(document.createElement('canvas'), ch, 300, store.cfg().operator); const b = await toBlob(cv, 'image/jpeg', 0.92); pages.push({ bytes: new Uint8Array(await b.arrayBuffer()), w: cv.width, h: cv.height }); cv.width = 1; }
     download(makePdf(pages), `진단권_A4_${list.length}장.pdf`); toast('PDF를 저장했어요.');
   }
   async function printView(list = A.batch) {
@@ -79,13 +79,13 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
       for (let i = 0; i < cs.length; i++) {
         $('pvTitle').textContent = `인쇄 시트 만드는 중… ${i + 1} / ${cs.length}쪽`; $('pvBar').style.width = Math.round((i / cs.length) * 100) + '%';
         await new Promise((r) => setTimeout(r, 16)); // 화면에 진행 상황을 먼저 그림
-        const cv = renderSheet(document.createElement('canvas'), cs[i], 300); const img = new Image(); img.className = 'pv-page'; img.alt = 'A4 인쇄 시트'; img.src = URL.createObjectURL(await toBlob(cv, 'image/png')); box.appendChild(img); cv.width = 1;
+        const cv = renderSheet(document.createElement('canvas'), cs[i], 300, store.cfg().operator); const img = new Image(); img.className = 'pv-page'; img.alt = 'A4 인쇄 시트'; img.src = URL.createObjectURL(await toBlob(cv, 'image/png')); box.appendChild(img); cv.width = 1;
       }
       $('pvTitle').textContent = `인쇄 미리보기 · ${list.length}장 · A4 ${box.children.length}쪽 (배율 100%로 인쇄)`;
     } finally { $('pvProgress').hidden = true; btns.forEach((b) => (b.disabled = false)); A.busy = false; }
   }
   function closePv() { const box = $('pvPages'); [...box.querySelectorAll('img')].forEach((i) => URL.revokeObjectURL(i.src)); box.innerHTML = ''; $('printView').hidden = true; A.pvList = []; }
-  async function sheetPng() { const list = A.pvList; const cs = chunks(list); for (let i = 0; i < cs.length; i++) { const cv = renderSheet(document.createElement('canvas'), cs[i], 300); download(await toBlob(cv, 'image/png'), `진단권_A4_${i + 1}.png`); cv.width = 1; } }
+  async function sheetPng() { const list = A.pvList; const cs = chunks(list); for (let i = 0; i < cs.length; i++) { const cv = renderSheet(document.createElement('canvas'), cs[i], 300, store.cfg().operator); download(await toBlob(cv, 'image/png'), `진단권_A4_${i + 1}.png`); cv.width = 1; } }
   // ---------- 목록 ----------
   const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const batchKey = (it) => it.batch || 'b' + (it.at || 0);

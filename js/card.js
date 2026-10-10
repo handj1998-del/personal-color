@@ -1,6 +1,6 @@
 // 결과 카드 PNG 렌더러 (색과 글자만, 얼굴 사진 없음)
 import { hexToRgb } from './color.js';
-import { drawQr } from './qrcard.js';
+import { drawQr, drawMark, brandName } from './qrcard.js';
 import { FACE_SHAPES, GLASS_SHAPES, LIPS, FRAMES, BROW_PATHS, glassesPaths, HAIR_COLORS, HAIR_STYLES, HAIR_REC, HAIR_GENDERS } from './style.js';
 const FONT = "'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR','Noto Sans CJK KR','Nanum Gothic',sans-serif";
 const textColor = (hex) => { const [r, g, b] = hexToRgb(hex); return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#2a2433' : '#ffffff'; };
@@ -119,9 +119,13 @@ export function renderCardCanvas(canvas, r) {
     } else { head('헤어스타일'); para('얼굴형을 선택하면 맞춤 헤어스타일 추천을 함께 저장해요.', 28, '#5b5266'); }
     y += 70; ctx.font = `500 26px ${FONT}`;
     // v1.6: 결과 보기 QR(오른쪽) + 주소. QR에는 타입 코드만 담긴 주소(#r=…)가 들어감
+    // v1.8: 상호(운영 주체) + H.O.W 마크
+    if (!measureOnly) { drawMark(ctx, P - 6, y - 40, 60); ctx.fillStyle = '#2b2340'; ctx.font = `800 32px ${FONT}`; ctx.fillText(brandName(r.brand), P + 62, y + 2); ctx.font = `500 26px ${FONT}`; }
+    y += 60;
     const qs = r.url ? 190 : 0, tw = W - 2 * P - (qs ? qs + 30 : 0), y0 = y - 30;
     const foot = [`두 번째 후보: ${r.second.name} · 신뢰도 ${r.conf.label} · ${r.method}`, ...wrap(ctx, `${r.date} · 카메라·조명에 따라 달라질 수 있는 추정이며, 추천은 스타일링 제안이에요.`, tw)];
-    if (r.url) foot.push('QR을 찍으면 이 결과를 다시 볼 수 있어요.', shortUrl(r.appUrl || r.url));
+    if (r.url) foot.push('📱 QR을 찍으면 내 결과를 받을 수 있어요.', shortUrl(r.appUrl || r.url));
+    if (r.legal) foot.push(...wrap(ctx, '⚖ ' + r.legal, tw));
     for (const ln of foot) { if (!measureOnly) { ctx.fillStyle = '#8a8094'; ctx.fillText(ln, P, y); } y += 40; }
     if (qs && !measureOnly) drawQr(ctx, r.url, W - P - qs, y0, qs, 2);
     return Math.max(y, y0 + qs + 20) + 40;
@@ -194,11 +198,13 @@ export function renderStoryCanvas(canvas, r) {
   y += 100;
   if (r.celebs?.length) { ctx.font = `500 28px ${FONT}`; ctx.fillStyle = '#5b5266'; ctx.fillText(`자주 언급되는 예시(참고): ${r.celebs.join(', ')}`, P, y); y += 40; }
   // 아래: QR + 안내
-  const qs = 220, qy = H - 60 - qs;
+  const qs = 220, qy = H - 128 - qs; // 아래쪽에 이용 안내 2줄 자리
   if (r.url) drawQr(ctx, r.url, W - P - qs, qy, qs, 2);
+  drawMark(ctx, P - 6, qy - 64, 56); ctx.fillStyle = '#2b2340'; ctx.font = `800 30px ${FONT}`; ctx.fillText(brandName(r.brand), P + 58, qy - 26);
   ctx.font = `600 30px ${FONT}`; ctx.fillStyle = '#2a2433'; ctx.fillText(`신뢰도 ${r.conf.label} · ${r.method}`, P, qy + 50);
   ctx.font = `400 26px ${FONT}`; ctx.fillStyle = '#8a8094';
   ctx.fillText(`${r.date} · 카메라·조명에 따라 달라지는 추정이에요.`, P, qy + 100);
-  if (r.url) { ctx.fillText('QR로 결과 다시 보기', P, qy + 150); ctx.fillText(shortUrl(r.appUrl || r.url), P, qy + 192); }
+  if (r.url) { ctx.fillText('📱 QR로 내 결과 받기', P, qy + 150); ctx.fillText(shortUrl(r.appUrl || r.url), P, qy + 192); }
+  if (r.legal) { ctx.font = `400 21px ${FONT}`; ctx.fillStyle = '#8a8094'; wrap(ctx, '⚖ ' + r.legal, W - 2 * P).slice(0, 3).forEach((ln, i) => ctx.fillText(ln, P, H - 84 + i * 28)); }
   return canvas;
 }

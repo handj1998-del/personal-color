@@ -18,59 +18,66 @@ export function drawQr(ctx, text, x, y, size, quiet = 2) {
     ctx.fillRect(Math.floor(x + (c + quiet) * cell), Math.floor(y + (r + quiet) * cell), Math.ceil(cell), Math.ceil(cell));
   return m.n;
 }
+// H.O.W 콘셉트 1 마크 (흰 바탕 · 검정 H.O.W · 사계절 점 4개) — icons/icon.svg 와 같은 도형. size = 한 변(px)
+export function drawMark(ctx, x, y, size, { bg = true } = {}) {
+  const s = size / 512; ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  if (bg) { rr(ctx, 0, 0, 512, 512, 96); ctx.fillStyle = '#fff'; ctx.fill(); }
+  ctx.save(); ctx.translate(60, 187); ctx.scale(0.98, 0.98); ctx.fillStyle = '#111'; ctx.strokeStyle = '#111';
+  ctx.fillRect(0, 0, 22, 100); ctx.fillRect(58, 0, 22, 100); ctx.fillRect(0, 39, 80, 22);
+  for (const cx of [105, 255]) { ctx.beginPath(); ctx.arc(cx, 87, 13, 0, Math.PI * 2); ctx.fill(); }
+  ctx.lineWidth = 22; ctx.beginPath(); ctx.arc(180, 50, 39, 0, Math.PI * 2); ctx.stroke();
+  ctx.save(); ctx.beginPath(); ctx.rect(280, 0, 120, 100); ctx.clip(); ctx.lineJoin = 'miter'; ctx.miterLimit = 10; ctx.beginPath();
+  [[289.9, -30], [310, 100], [340, 28], [370, 100], [390.1, -30]].forEach(([a, b], i) => (i ? ctx.lineTo(a, b) : ctx.moveTo(a, b))); ctx.stroke(); ctx.restore();
+  ctx.restore();
+  SEASON_DOTS.forEach((c, i) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(196 + i * 40, 330, 13, 0, Math.PI * 2); ctx.fill(); });
+  ctx.restore();
+}
+export const SEASON_DOTS = ['#f7a58c', '#b9d7f0', '#c47a5a', '#6d1a36'];
+export const brandName = (b) => String(b || '').trim().slice(0, 20) || 'H.O.W';
 function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
 
 // 카드 하나를 (x,y)에 mm 단위 크기로 그림. px = mm * k
-export function drawCard(ctx, t, x0, y0, k) {
-  const W = CARD_MM.w * k, H = CARD_MM.h * k, u = (mm) => mm * k;
+// v1.8: 앱과 같은 톤 — 흰 바탕 · 짙은 남보라 글자 · 보라 포인트, 왼쪽 위 H.O.W 마크 + 운영 주체 이름. QR은 흰 바탕 위에 로고 없이(가림 없음)
+export function drawCard(ctx, t, x0, y0, k, brand) {
+  const W = CARD_MM.w * k, H = CARD_MM.h * k, u = (mm) => mm * k, name = brandName(brand);
   ctx.save(); ctx.translate(x0, y0);
-  rr(ctx, 0, 0, W, H, u(3.2)); ctx.clip();
-  // 카드 배경: 딥 퍼플 → 플럼 → 로즈골드 그라데이션 + 은은한 물결
-  const g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#2b2340'); g.addColorStop(0.5, '#5b3f8f'); g.addColorStop(1, '#c47a8a');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  ctx.globalAlpha = 0.12; ctx.strokeStyle = '#fff'; ctx.lineWidth = u(0.35);
-  for (let i = 0; i < 9; i++) { ctx.beginPath(); for (let px = 0; px <= W; px += u(2)) { const py = H * 0.25 + i * u(4.2) + Math.sin(px / u(11) + i * 0.7) * u(2.2); px ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } ctx.stroke(); }
-  ctx.globalAlpha = 1;
-  // 사계절 컬러 점
-  ['#f7a58c', '#b9d7f0', '#c47a5a', '#6d1a36'].forEach((c, i) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(u(7 + i * 3.6), u(7), u(1.5), 0, Math.PI * 2); ctx.fill(); });
-  ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = `700 ${u(2.3)}px ${FONT}`; ctx.textBaseline = 'middle'; ctx.fillText('COLOR STUDIO', u(21.5), u(7.1));
-  // IC 칩
-  const cx = u(6), cy = u(15), cw = u(10), ch = u(7.6);
-  const cg = ctx.createLinearGradient(cx, cy, cx + cw, cy + ch); cg.addColorStop(0, '#f6dc8a'); cg.addColorStop(0.5, '#c79a35'); cg.addColorStop(1, '#ffe9a8');
-  rr(ctx, cx, cy, cw, ch, u(1.3)); ctx.fillStyle = cg; ctx.fill(); ctx.strokeStyle = 'rgba(90,60,10,.55)'; ctx.lineWidth = u(0.25); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx + cw * 0.33, cy); ctx.lineTo(cx + cw * 0.33, cy + ch); ctx.moveTo(cx + cw * 0.67, cy); ctx.lineTo(cx + cw * 0.67, cy + ch);
-  ctx.moveTo(cx, cy + ch / 2); ctx.lineTo(cx + cw * 0.33, cy + ch / 2); ctx.moveTo(cx + cw * 0.67, cy + ch / 2); ctx.lineTo(cx + cw, cy + ch / 2); ctx.stroke();
-  // 비접촉 표시
-  ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = u(0.45);
-  for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(u(18.5), cy + ch / 2, u(1.3 + i * 1.1), -0.8, 0.8); ctx.stroke(); }
+  rr(ctx, 0, 0, W, H, u(3.2)); ctx.fillStyle = '#fff'; ctx.fill(); ctx.clip();
+  ctx.fillStyle = '#2b2340'; ctx.fillRect(0, H - u(3.2), W, u(3.2)); // 아래 띠 (앱 상단 바 색)
+  SEASON_DOTS.forEach((c, i) => { ctx.fillStyle = c; ctx.fillRect(i * W / 4, H - u(3.2), W / 4, u(0.9)); });
+  ctx.strokeStyle = '#e4dcee'; ctx.lineWidth = u(0.3); rr(ctx, u(0.15), u(0.15), W - u(0.3), H - u(0.3), u(3.1)); ctx.stroke();
+  // 마크 + 상호
+  drawMark(ctx, u(4.2), u(3.4), u(9), { bg: false });
+  ctx.fillStyle = '#2b2340'; ctx.textBaseline = 'middle'; ctx.font = `800 ${u(3.4)}px ${FONT}`;
+  let nm = name; while (ctx.measureText(nm).width > u(40) && nm.length > 1) nm = nm.slice(0, -1); if (nm !== name) nm += '…';
+  ctx.fillText(nm, u(14.2), u(8));
   // 제목·일련번호·날짜
-  ctx.fillStyle = '#fff'; ctx.textBaseline = 'alphabetic';
-  ctx.font = `800 ${u(4.6)}px ${FONT}`; ctx.fillText('퍼스널컬러 진단권', u(6), u(30));
-  ctx.font = `600 ${u(2)}px ${FONT}`; ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.fillText('PERSONAL COLOR PASS · 1회 사용', u(6), u(33.6));
-  ctx.fillStyle = '#fff'; ctx.font = `700 ${u(3.3)}px ${MONO}`; ctx.fillText(`No. ${t.id.slice(0, 4)} ${t.id.slice(4)}`, u(6), u(40));
-  ctx.font = `500 ${u(2.1)}px ${FONT}`; ctx.fillStyle = 'rgba(255,255,255,.88)';
-  ctx.fillText(`발급 ${fmtDay(t.issued)}   유효 ${t.exp ? '~' + fmtDay(t.exp) : '기한 없음'}`, u(6), u(44.3));
-  ctx.font = `500 ${u(1.75)}px ${MONO}`; ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fillText(t.code, u(6), u(47.4));
-  // QR (흰 바탕)
-  const qs = u(27), qx = W - qs - u(5), qy = u(10.5);
-  rr(ctx, qx - u(1.2), qy - u(1.2), qs + u(2.4), qs + u(2.4), u(2)); ctx.fillStyle = '#fff'; ctx.fill();
-  drawQr(ctx, t.token, qx, qy, qs, 1);
-  ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.font = `600 ${u(1.9)}px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText('매장 기기 카메라에 보여 주세요', qx + qs / 2, qy + qs + u(4.6)); ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#5b3f8f'; ctx.font = `800 ${u(4.6)}px ${FONT}`; ctx.fillText('퍼스널컬러 진단권', u(6), u(22));
+  ctx.font = `600 ${u(2)}px ${FONT}`; ctx.fillStyle = '#6f6680'; ctx.fillText('PERSONAL COLOR PASS · 1회 사용', u(6), u(25.6));
+  ctx.fillStyle = '#2b2340'; ctx.font = `700 ${u(3.3)}px ${MONO}`; ctx.fillText(`No. ${t.id.slice(0, 4)} ${t.id.slice(4)}`, u(6), u(33));
+  ctx.font = `500 ${u(2.1)}px ${FONT}`; ctx.fillStyle = '#3d3547';
+  ctx.fillText(`발급 ${fmtDay(t.issued)}   유효 ${t.exp ? '~' + fmtDay(t.exp) : '기한 없음'}`, u(6), u(37.6));
+  ctx.font = `500 ${u(1.75)}px ${MONO}`; ctx.fillStyle = '#6f6680'; ctx.fillText(t.code, u(6), u(41));
+  // QR: 흰 바탕 카드 위라 주변 여백(quiet zone)이 넉넉함. 얇은 보라 테두리만 바깥에
+  const qs = u(27), qx = W - qs - u(5), qy = u(6.5);
+  rr(ctx, qx - u(1.4), qy - u(1.4), qs + u(2.8), qs + u(2.8), u(2)); ctx.strokeStyle = '#5b3f8f'; ctx.lineWidth = u(0.35); ctx.stroke();
+  drawQr(ctx, t.token, qx, qy, qs, 2);
+  ctx.fillStyle = '#5b3f8f'; ctx.font = `700 ${u(1.9)}px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText('매장 기기 카메라에 보여 주세요', qx + qs / 2, qy + qs + u(4.3)); ctx.textAlign = 'left';
   ctx.restore();
 }
-export function renderCard(canvas, t, dpi = 300) {
+export function renderCard(canvas, t, dpi = 300, brand) {
   const k = dpi / 25.4; canvas.width = Math.round(CARD_MM.w * k); canvas.height = Math.round(CARD_MM.h * k);
-  const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); drawCard(ctx, t, 0, 0, k); return canvas;
+  const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); drawCard(ctx, t, 0, 0, k, brand); return canvas;
 }
 // A4 한 장: 2×5 카드 + 재단선(crop marks)
-export function renderSheet(canvas, tickets, dpi = 300) {
+export function renderSheet(canvas, tickets, dpi = 300, brand) {
   const k = dpi / 25.4; canvas.width = Math.round(A4_MM.w * k); canvas.height = Math.round(A4_MM.h * k);
   const ctx = canvas.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
   const { cols, rows, gap } = SHEET, gw = cols * CARD_MM.w + (cols - 1) * gap, gh = rows * CARD_MM.h + (rows - 1) * gap;
   const mx = (A4_MM.w - gw) / 2, my = (A4_MM.h - gh) / 2;
   tickets.slice(0, cols * rows).forEach((t, i) => {
     const x = mx + (i % cols) * (CARD_MM.w + gap), y = my + Math.floor(i / cols) * (CARD_MM.h + gap);
-    drawCard(ctx, t, x * k, y * k, k);
+    drawCard(ctx, t, x * k, y * k, k, brand);
     ctx.strokeStyle = '#000'; ctx.lineWidth = Math.max(1, 0.15 * k);
     const L = 2.5, off = 0.8; // 재단선 길이·간격(mm)
     for (const [cx, cy, sx, sy] of [[x, y, -1, -1], [x + CARD_MM.w, y, 1, -1], [x, y + CARD_MM.h, -1, 1], [x + CARD_MM.w, y + CARD_MM.h, 1, 1]]) {
@@ -79,7 +86,7 @@ export function renderSheet(canvas, tickets, dpi = 300) {
     }
   });
   ctx.fillStyle = '#888'; ctx.font = `400 ${2.6 * k}px ${FONT}`;
-  ctx.fillText(`퍼스널컬러 진단권 · ${tickets.length}장 · 90×50mm · 재단선에 맞춰 잘라 주세요 (인쇄 배율 100%)`, mx * k, (A4_MM.h - 6) * k);
+  ctx.fillText(`${brandName(brand)} 퍼스널컬러 진단권 · ${tickets.length}장 · 90×50mm · 재단선에 맞춰 잘라 주세요 (인쇄 배율 100%)`, mx * k, (A4_MM.h - 6) * k);
   return canvas;
 }
 // JPEG 이미지(A4 시트)들로 PDF 만들기 (외부 라이브러리 없이)

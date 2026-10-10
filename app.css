@@ -253,6 +253,15 @@ body[data-screen="shared"] #btnReset, body[data-screen="shared"] #btnFull { disp
 .qrbox .modal-btns { justify-content:center; flex-wrap:wrap; }
 .updbar { position:fixed; left:50%; bottom:max(14px, env(safe-area-inset-bottom)); transform:translateX(-50%); z-index:28; display:flex; align-items:center; gap:10px; background:#2b2340; color:#fff; padding:10px 12px 10px 18px; border-radius:16px; font-size:17px; font-weight:700; box-shadow:0 6px 20px rgba(0,0,0,.35); max-width:94vw; }
 .updbar .btn { min-height:48px; font-size:16px; padding:6px 14px; }
+.expiry { margin:10px 2px 0; font-size:15px; font-weight:600; color:#5b3f8f; }
+.bizline { display:flex; align-items:center; gap:8px; margin:0 0 6px; color:#2b2340; font-size:15px; } .bizline img { border-radius:6px; box-shadow:0 0 0 1px #e4dcee; } .bizline.big { font-size:20px; margin:4px 0 8px; } .bizline.big span { font-size:15px; color:var(--sub); font-weight:500; }
+.legal { margin:10px 2px 4px; font-size:13px; line-height:1.5; color:#5b5266; }
+.errcard h2.sec { margin-top:0; }
+.myqr { display:flex; gap:14px; align-items:center; margin:14px 0 6px; padding:12px; border:2px solid #5b3f8f; border-radius:14px; background:#faf7ff; }
+.myqr canvas { width:132px; height:132px; flex:none; background:#fff; border-radius:6px; }
+.myqr h2.sec { margin:0 0 4px; font-size:18px; } .myqr p { margin:0; font-size:14px; color:var(--sub); }
+html.locked #btnReset, html.locked #btnFull, html.locked #steps, html.locked #updBar, html.locked #idlePrompt { display:none !important; }
+html.locked #brand { pointer-events:none; }
 .sharednote { margin:4px 0 10px; font-size:15px; color:var(--sub); }
 [data-for="adminScan"] .bigbtns .btn { flex-basis:100%; }
 /* 결과 화면 하단: 저장 · 휴대폰으로 / 드레이핑 다시 · 다음 고객 (2×2) */

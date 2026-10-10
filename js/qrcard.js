@@ -34,6 +34,10 @@ export function drawMark(ctx, x, y, size, { bg = true } = {}) {
 }
 export const SEASON_DOTS = ['#f7a58c', '#b9d7f0', '#c47a5a', '#6d1a36'];
 export const brandName = (b) => String(b || '').trim().slice(0, 20) || 'H.O.W';
+// 상호가 기본값(H.O.W)이면 글자 대신 마크만, 다른 이름이면 이름 글자만 (둘 다 쓰지 않음)
+export const isDefaultBrand = (b) => brandName(b).replace(/\s/g, '').toUpperCase() === 'H.O.W';
+// 마크 글자 영역(512 기준): x 60~452, y 187~343 → 글자 높이 h(px)가 되도록 그림, (x,y)=글자 왼쪽 위
+export function drawMarkGlyph(ctx, x, y, h) { const s = h / 156 * 512; drawMark(ctx, x - s * 60 / 512, y - s * 187 / 512, s, { bg: false }); return s * 392 / 512; }
 function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
 
 // 카드 하나를 (x,y)에 mm 단위 크기로 그림. px = mm * k
@@ -46,10 +50,12 @@ export function drawCard(ctx, t, x0, y0, k, brand) {
   SEASON_DOTS.forEach((c, i) => { ctx.fillStyle = c; ctx.fillRect(i * W / 4, H - u(3.2), W / 4, u(0.9)); });
   ctx.strokeStyle = '#e4dcee'; ctx.lineWidth = u(0.3); rr(ctx, u(0.15), u(0.15), W - u(0.3), H - u(0.3), u(3.1)); ctx.stroke();
   // 마크 + 상호
-  drawMark(ctx, u(3.4), u(2.2), u(12.5), { bg: false });
-  ctx.fillStyle = '#2b2340'; ctx.textBaseline = 'middle'; ctx.font = `800 ${u(4.7)}px ${FONT}`;
-  let nm = name; while (ctx.measureText(nm).width > u(41) && nm.length > 1) nm = nm.slice(0, -1); if (nm !== name) nm += '…';
-  ctx.fillText(nm, u(16.6), u(8.5));
+  if (isDefaultBrand(brand)) drawMarkGlyph(ctx, u(6), u(4.6), u(7.6));
+  else {
+    ctx.fillStyle = '#2b2340'; ctx.textBaseline = 'middle'; ctx.font = `800 ${u(6)}px ${FONT}`;
+    let nm = name; while (ctx.measureText(nm).width > u(51) && nm.length > 1) nm = nm.slice(0, -1); if (nm !== name) nm += '…';
+    ctx.fillText(nm, u(6), u(9));
+  }
   // 제목·일련번호·날짜
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#5b3f8f'; ctx.font = `800 ${u(4.6)}px ${FONT}`; ctx.fillText('퍼스널컬러 진단권', u(6), u(22));

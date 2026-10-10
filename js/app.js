@@ -565,8 +565,9 @@ function renderResult() {
     <div class="rpane" id="rpane" data-tab="${S.resTab}">${resultPane(S.resTab)}</div>
     ${faceDebug()}
     ${r.changed && S.auto ? `<p class="note">드레이핑 선택을 반영해 자동 분석(${SEASONS[S.auto.cls.top[0].id].name})과 다른 결과가 나왔어요.</p>` : ''}
-    ${S.screen === 'shared' ? '' : `<div class="myqr"><canvas id="resQr" width="300" height="300" role="img" aria-label="내 결과 받기 QR 코드"></canvas><div><p class="bizline"><img src="icons/icon.svg" alt="" width="22" height="22"><b>${esc(bizName())}</b></p><h2 class="sec">📱 QR로 내 결과 받기</h2><p>고객 휴대폰 카메라로 찍으면 이 결과를 보고 이미지로 저장할 수 있어요. 결과만 열리고 다른 진단 화면으로는 이동할 수 없어요.</p></div></div>`}
+    ${S.screen === 'shared' ? '' : `<div class="myqr"><canvas id="resQr" width="300" height="300" role="img" aria-label="내 결과 받기 QR 코드"></canvas><div><h2 class="sec">📱 QR로 내 결과 받기</h2><p>고객 휴대폰 카메라로 찍으면 이 결과를 보고 이미지로 저장할 수 있어요. 결과만 열리고 다른 진단 화면으로는 이동할 수 없어요.</p></div></div>`}
     <p class="note">카메라와 조명에 따라 달라질 수 있는 추정 결과이고, 추천은 일반적인 스타일링 가이드에 따른 제안이에요. 실제 옷·안경·화장품·헤어를 대 보며 함께 확인해 주세요.</p>`;
+  if (S.screen !== 'shared') $('resBrand').textContent = bizName();
   const qc = $('resQr'); if (qc) { const c = qc.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, qc.width, qc.height); drawQr(c, resultUrl(), 0, 0, qc.width, 3); }
   prepCards();
 }

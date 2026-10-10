@@ -46,10 +46,10 @@ export function drawCard(ctx, t, x0, y0, k, brand) {
   SEASON_DOTS.forEach((c, i) => { ctx.fillStyle = c; ctx.fillRect(i * W / 4, H - u(3.2), W / 4, u(0.9)); });
   ctx.strokeStyle = '#e4dcee'; ctx.lineWidth = u(0.3); rr(ctx, u(0.15), u(0.15), W - u(0.3), H - u(0.3), u(3.1)); ctx.stroke();
   // 마크 + 상호
-  drawMark(ctx, u(4.2), u(3.4), u(9), { bg: false });
-  ctx.fillStyle = '#2b2340'; ctx.textBaseline = 'middle'; ctx.font = `800 ${u(3.4)}px ${FONT}`;
-  let nm = name; while (ctx.measureText(nm).width > u(40) && nm.length > 1) nm = nm.slice(0, -1); if (nm !== name) nm += '…';
-  ctx.fillText(nm, u(14.2), u(8));
+  drawMark(ctx, u(3.4), u(2.2), u(12.5), { bg: false });
+  ctx.fillStyle = '#2b2340'; ctx.textBaseline = 'middle'; ctx.font = `800 ${u(4.7)}px ${FONT}`;
+  let nm = name; while (ctx.measureText(nm).width > u(41) && nm.length > 1) nm = nm.slice(0, -1); if (nm !== name) nm += '…';
+  ctx.fillText(nm, u(16.6), u(8.5));
   // 제목·일련번호·날짜
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#5b3f8f'; ctx.font = `800 ${u(4.6)}px ${FONT}`; ctx.fillText('퍼스널컬러 진단권', u(6), u(22));
@@ -86,7 +86,7 @@ export function renderSheet(canvas, tickets, dpi = 300, brand) {
     }
   });
   ctx.fillStyle = '#888'; ctx.font = `400 ${2.6 * k}px ${FONT}`;
-  ctx.fillText(`${brandName(brand)} 퍼스널컬러 진단권 · ${tickets.length}장 · 90×50mm · 재단선에 맞춰 잘라 주세요 (인쇄 배율 100%)`, mx * k, (A4_MM.h - 6) * k);
+  ctx.fillText(`퍼스널컬러 진단권 · ${tickets.length}장 · 90×50mm · 재단선에 맞춰 잘라 주세요 (인쇄 배율 100%)`, mx * k, (A4_MM.h - 6) * k);
   return canvas;
 }
 // JPEG 이미지(A4 시트)들로 PDF 만들기 (외부 라이브러리 없이)

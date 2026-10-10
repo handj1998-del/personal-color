@@ -19,6 +19,8 @@ function wrap(ctx, text, maxW) {
 }
 function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
 
+// 결과 이미지 아래쪽 가벼운 저작권 안내 한 줄
+const COPY = (r) => `© ${brandName(r.brand)} · 이 이미지는 저작권법의 보호를 받습니다.`;
 export function renderCardCanvas(canvas, r) {
   const S = r.season, W = 1080, P = 72;
   const ctx = canvas.getContext('2d');
@@ -30,8 +32,10 @@ export function renderCardCanvas(canvas, r) {
       ctx.fillStyle = '#fbf8f4'; ctx.fillRect(0, 0, W, canvas.height);
       const g = ctx.createLinearGradient(0, 0, W, 0); S.best.slice(0, 6).forEach((c, i) => g.addColorStop(i / 5, c.hex));
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, 28);
+      // v1.8.2: 상호는 왼쪽 위 한 곳에만 (H.O.W 마크 + 상호)
+      drawMark(ctx, P - 10, 50, 76); ctx.fillStyle = '#2b2340'; ctx.font = `800 46px ${FONT}`; ctx.textBaseline = 'middle'; ctx.fillText(brandName(r.brand), P + 74, 89); ctx.textBaseline = 'alphabetic';
     }
-    y = 110;
+    y = 200;
     ctx.textBaseline = 'alphabetic';
     ctx.font = `600 34px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#7a6f86'; ctx.fillText('나의 퍼스널컬러', P, y); }
     y += 90; ctx.font = `800 84px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#2a2433'; ctx.fillText(S.name, P, y); }
@@ -120,12 +124,10 @@ export function renderCardCanvas(canvas, r) {
     y += 70; ctx.font = `500 26px ${FONT}`;
     // v1.6: 결과 보기 QR(오른쪽) + 주소. QR에는 타입 코드만 담긴 주소(#r=…)가 들어감
     // v1.8: 상호(운영 주체) + H.O.W 마크
-    if (!measureOnly) { drawMark(ctx, P - 6, y - 40, 60); ctx.fillStyle = '#2b2340'; ctx.font = `800 32px ${FONT}`; ctx.fillText(brandName(r.brand), P + 62, y + 2); ctx.font = `500 26px ${FONT}`; }
-    y += 60;
     const qs = r.url ? 190 : 0, tw = W - 2 * P - (qs ? qs + 30 : 0), y0 = y - 30;
     const foot = [`두 번째 후보: ${r.second.name} · 신뢰도 ${r.conf.label} · ${r.method}`, ...wrap(ctx, `${r.date} · 카메라·조명에 따라 달라질 수 있는 추정이며, 추천은 스타일링 제안이에요.`, tw)];
     if (r.url) foot.push('📱 QR을 찍으면 내 결과를 받을 수 있어요.', shortUrl(r.appUrl || r.url));
-    if (r.legal) foot.push(...wrap(ctx, '⚖ ' + r.legal, tw));
+    foot.push(COPY(r));
     for (const ln of foot) { if (!measureOnly) { ctx.fillStyle = '#8a8094'; ctx.fillText(ln, P, y); } y += 40; }
     if (qs && !measureOnly) drawQr(ctx, r.url, W - P - qs, y0, qs, 2);
     return Math.max(y, y0 + qs + 20) + 40;
@@ -169,7 +171,8 @@ export function renderStoryCanvas(canvas, r) {
   const g = ctx.createLinearGradient(0, 0, W, 0); S.best.slice(0, 6).forEach((c, i) => g.addColorStop(i / 5, c.hex));
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, 40); ctx.fillRect(0, H - 24, W, 24);
   ctx.textBaseline = 'alphabetic';
-  let y = 170;
+  drawMark(ctx, P - 10, 64, 84); ctx.fillStyle = '#2b2340'; ctx.font = `800 50px ${FONT}`; ctx.textBaseline = 'middle'; ctx.fillText(brandName(r.brand), P + 82, 107); ctx.textBaseline = 'alphabetic';
+  let y = 240;
   ctx.font = `600 38px ${FONT}`; ctx.fillStyle = '#7a6f86'; ctx.fillText('나의 퍼스널컬러', P, y);
   y += 110; ctx.font = `800 104px ${FONT}`; ctx.fillStyle = '#2a2433'; ctx.fillText(S.name, P, y);
   y += 70; ctx.font = `500 38px ${FONT}`; ctx.fillStyle = '#7a6f86'; ctx.fillText(`${S.short} · ${S.keywords.join(' · ')}`, P, y);
@@ -198,13 +201,12 @@ export function renderStoryCanvas(canvas, r) {
   y += 100;
   if (r.celebs?.length) { ctx.font = `500 28px ${FONT}`; ctx.fillStyle = '#5b5266'; ctx.fillText(`자주 언급되는 예시(참고): ${r.celebs.join(', ')}`, P, y); y += 40; }
   // 아래: QR + 안내
-  const qs = 220, qy = H - 128 - qs; // 아래쪽에 이용 안내 2줄 자리
+  const qs = 220, qy = H - 100 - qs; // 아래쪽에 저작권 안내 1줄 자리
   if (r.url) drawQr(ctx, r.url, W - P - qs, qy, qs, 2);
-  drawMark(ctx, P - 6, qy - 64, 56); ctx.fillStyle = '#2b2340'; ctx.font = `800 30px ${FONT}`; ctx.fillText(brandName(r.brand), P + 58, qy - 26);
   ctx.font = `600 30px ${FONT}`; ctx.fillStyle = '#2a2433'; ctx.fillText(`신뢰도 ${r.conf.label} · ${r.method}`, P, qy + 50);
   ctx.font = `400 26px ${FONT}`; ctx.fillStyle = '#8a8094';
   ctx.fillText(`${r.date} · 카메라·조명에 따라 달라지는 추정이에요.`, P, qy + 100);
   if (r.url) { ctx.fillText('📱 QR로 내 결과 받기', P, qy + 150); ctx.fillText(shortUrl(r.appUrl || r.url), P, qy + 192); }
-  if (r.legal) { ctx.font = `400 21px ${FONT}`; ctx.fillStyle = '#8a8094'; wrap(ctx, '⚖ ' + r.legal, W - 2 * P).slice(0, 3).forEach((ln, i) => ctx.fillText(ln, P, H - 84 + i * 28)); }
+  ctx.font = `400 22px ${FONT}`; ctx.fillStyle = '#9a90a4'; ctx.fillText(COPY(r), P, H - 56);
   return canvas;
 }

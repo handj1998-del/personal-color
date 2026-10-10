@@ -320,3 +320,7 @@ body[data-screen="home"] #btnReset { display:none; }
 .resmore { position:absolute; right:0; bottom:calc(100% + 6px); width:min(100%, 340px); display:flex; flex-direction:column; gap:6px; padding:8px; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,.16); z-index:4; }
 .resmore[hidden] { display:none; }
 .bigbtns.row .resmore .btn { flex:none; min-height:50px; font-size:17px; justify-content:flex-start; text-align:left; }
+/* v1.8: 결과 링크 첫 화면 — JS가 뜨기 전에도 결과 전용 화면만 */
+html.boot-r .screen:not([data-for^="shared"]) { display:none !important; }
+html.boot-r #btnReset, html.boot-r #btnFull, html.boot-r #steps { display:none !important; }
+html.boot-r #sharedCard:empty { min-height:110vh; }

@@ -34,22 +34,24 @@ function hmac(msg) {
   const outer = new Uint8Array(96); outer.set(op); outer.set(sha256(inner), 64);
   const h = sha256(outer); return ((((h[0] << 24) | (h[1] << 16) | (h[2] << 8) | h[3]) >>> 0) * 256 + h[4]).toString(36).padStart(8, '0').slice(-8);
 }
-// 형식: '2' + 결과(14자) + 만료 시각(분 단위, 36진수 7자) + 서명 8자
-export function encodeResult(f, faceSel, gender = 'f', expMs) {
+// 형식: '2' + 결과(14자) + 만료 시각(분 단위, 36진수 7자) + 서명 8자 [+ '&b=' 상호(운영 주체, 서명에 포함)]
+export function encodeResult(f, faceSel, gender = 'f', expMs, brand = '') {
   const body = encodeV1(f, faceSel, gender).slice(1), exp = Math.floor(expMs / 60000).toString(36).padStart(7, '0');
-  const core = '2' + body + exp; return core + hmac(core);
+  const core = '2' + body + exp, b = String(brand || '').trim().slice(0, 20);
+  return core + hmac(core + (b ? '|' + b : '')) + (b ? '&b=' + encodeURIComponent(b) : '');
 }
 // 돌려주는 값: null(잘못된 주소·변조) / { expired:true } (24시간 지남·예전 주소) / 결과(+ exp)
 export function decodeResult(code, now = Date.now()) {
-  code = String(code || '');
+  code = String(code || ''); let brand = '';
+  const bi = code.indexOf('&b='); if (bi >= 0) { try { brand = decodeURIComponent(code.slice(bi + 3)); } catch { return null; } code = code.slice(0, bi); if (!brand || brand.length > 20) return null; }
   if (/^1/.test(code)) return decodeV1(code) ? { expired: true, legacy: true } : null; // v1.7 이전 주소(유효기간 없음)는 만료로 봄
   const m = /^2([0-9a-z]{14})([0-9a-z]{7})([0-9a-z]{8})$/.exec(code); if (!m) return null;
-  if (hmac('2' + m[1] + m[2]) !== m[3]) return null;
+  if (hmac('2' + m[1] + m[2] + (brand ? '|' + brand : '')) !== m[3]) return null;
   const f = decodeV1('1' + m[1]); if (!f) return null;
   const exp = parseInt(m[2], 36) * 60000;
   if (!(exp > 0) || exp - now > RESULT_TTL_MS + 5 * 60000) return null; // 기기 시계 오차 5분까지만 허용
   if (now >= exp) return { expired: true, exp };
-  return { ...f, exp };
+  return { ...f, exp, brand };
 }
 function decodeV1(code) {
   const m = /^1([0-7])([0-7])([hml])([0-2])([0-5x])(\d{8})([fm])?$/.exec(String(code || '')); if (!m) return null; // 예전(14자) 주소도 열림
@@ -60,4 +62,4 @@ function decodeV1(code) {
   const date = `${m[6].slice(0, 4)}.${m[6].slice(4, 6)}.${m[6].slice(6)}`;
   return { id, season: SEASONS[id], second: SEASONS[SEASON_ORDER[+m[2]]], conf: { level, label: { high: '높음', mid: '보통', low: '낮음' }[level] }, method: METHODS[+m[4]], date, face: null, sharedFace: face, sharedGender: m[7] || 'f', changed: false };
 }
-export const RESULT_RE = /^#r=([0-9a-z]+)$/;
+export const RESULT_RE = /^#r=([0-9a-z]+(?:&b=[^&#]{1,200})?)$/;

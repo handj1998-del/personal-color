@@ -4,7 +4,7 @@ import { SEASONS, SEASON_ORDER, drapeRounds, OUTFITS, CELEBS, CELEB_NOTE } from 
 import { loadFace, detectFace, faceStatus } from './face.js';
 import { renderCardCanvas, renderStoryCanvas } from './card.js';
 import { createStore, admit, STORAGE_PREFIX, readSyncQr } from './ticket.js';
-import { drawQr } from './qrcard.js';
+import { drawQr, drawMark, brandName } from './qrcard.js';
 import { encodeResult, decodeResult, RESULT_RE, LEGAL_NOTICE, RESULT_TTL_MS } from './share.js';
 // 고객 휴대폰으로 연 결과 보기(#r=…): 서비스 워커(분석 엔진·모델 내려받기)·화면 꺼짐 방지·시계 기록을 건너뜀
 const SHARED_BOOT = RESULT_RE.test(location.hash);
@@ -16,6 +16,7 @@ import { initAdmin } from './admin.js';
 import { faceMetrics, classifyFaceShape, FACE_SHAPES, FACE_ORDER, GLASS_SHAPES, LIPS, FRAMES, glassesSvg, browSvg, HAIR_COLORS, HAIR_STYLES, HAIR_REC, HAIR_GENDERS, hairSvg } from './style.js';
 
 const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const SVGNS = 'http://www.w3.org/2000/svg';
 const CAMERA_SCREENS = new Set(['ticket', 'calib', 'capture', 'drape', 'adminScan']);
 const SCAN_SCREENS = new Set(['ticket', 'adminScan']);
@@ -564,7 +565,7 @@ function renderResult() {
     <div class="rpane" id="rpane" data-tab="${S.resTab}">${resultPane(S.resTab)}</div>
     ${faceDebug()}
     ${r.changed && S.auto ? `<p class="note">드레이핑 선택을 반영해 자동 분석(${SEASONS[S.auto.cls.top[0].id].name})과 다른 결과가 나왔어요.</p>` : ''}
-    ${S.screen === 'shared' ? '' : `<div class="myqr"><canvas id="resQr" width="300" height="300" role="img" aria-label="내 결과 받기 QR 코드"></canvas><div><h2 class="sec">📱 QR로 내 결과 받기</h2><p>고객 휴대폰 카메라로 찍으면 이 결과를 보고 이미지로 저장할 수 있어요. 결과만 열리고 다른 진단 화면으로는 이동할 수 없어요.</p></div></div>`}
+    ${S.screen === 'shared' ? '' : `<div class="myqr"><canvas id="resQr" width="300" height="300" role="img" aria-label="내 결과 받기 QR 코드"></canvas><div><p class="bizline"><img src="icons/icon.svg" alt="" width="22" height="22"><b>${esc(bizName())}</b></p><h2 class="sec">📱 QR로 내 결과 받기</h2><p>고객 휴대폰 카메라로 찍으면 이 결과를 보고 이미지로 저장할 수 있어요. 결과만 열리고 다른 진단 화면으로는 이동할 수 없어요.</p></div></div>`}
     <p class="note">카메라와 조명에 따라 달라질 수 있는 추정 결과이고, 추천은 일반적인 스타일링 가이드에 따른 제안이에요. 실제 옷·안경·화장품·헤어를 대 보며 함께 확인해 주세요.</p>`;
   const qc = $('resQr'); if (qc) { const c = qc.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, qc.width, qc.height); drawQr(c, resultUrl(), 0, 0, qc.width, 3); }
   prepCards();
@@ -588,7 +589,7 @@ $('btnSaveStory').onclick = () => saveCard('story');
 const cardKey = () => (S.final ? [S.final.id, S.final.second?.id, S.final.conf.level, S.final.method, S.final.date, faceId(), S.hairGender].join('|') : '');
 let cardCache = { key: '', files: {} }, prepTimer = null;
 async function makeCardFile(kind) {
-  const data = { ...S.final, faceId: faceId(), hairGender: S.hairGender, url: resultUrl(), appUrl: location.origin + location.pathname, legal: LEGAL_NOTICE, outfits: OUTFITS[S.final.id], celebs: CELEBS[S.final.id] };
+  const data = { ...S.final, faceId: faceId(), hairGender: S.hairGender, url: resultUrl(), appUrl: location.origin + location.pathname, legal: LEGAL_NOTICE, brand: bizName(), outfits: OUTFITS[S.final.id], celebs: CELEBS[S.final.id] };
   const cv = document.createElement('canvas'); (kind === 'story' ? renderStoryCanvas : renderCardCanvas)(cv, data);
   const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
   cv.width = cv.height = 1;
@@ -624,7 +625,9 @@ async function saveCard(kind = 'full') {
 // ---------- 결과를 고객 휴대폰으로 (서버 없이: 주소의 # 뒤에 결과 코드만 담음, #은 서버로 전송되지 않음) ----------
 // v1.8: 결과마다 만료 시각(24시간 뒤)을 한 번 정해 QR·결과 이미지에 같은 주소가 들어가게 함
 const resultExp = () => (S.final.exp ??= Math.ceil((Date.now() + RESULT_TTL_MS) / 60000) * 60000);
-const resultUrl = () => location.origin + location.pathname + '#r=' + encodeResult(S.final, faceId(), S.hairGender, resultExp());
+// 상호: 매장 기기에서는 관리자 '운영 주체' 설정, 고객 화면에서는 링크에 담긴(서명된) 상호
+const bizName = () => brandName(S.screen === 'shared' ? S.final?.brand : store.cfg().operator);
+const resultUrl = () => location.origin + location.pathname + '#r=' + encodeResult(S.final, faceId(), S.hairGender, resultExp(), bizName());
 const fmtExp = (ms) => { const d = new Date(ms), p = (n) => String(n).padStart(2, '0'); return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
 $('btnResultQr').onclick = () => {
   if (!S.final) return;
@@ -640,13 +643,14 @@ async function expireShared() {
   go('sharedExp');
 }
 function openShared() {
-  const m = /^#r=([0-9a-z]+)$/.exec(location.hash); if (!m) return false;
+  const m = RESULT_RE.exec(location.hash); if (!m) return false;
   const f = decodeResult(m[1]);
   S = fresh(); S.screen = 'shared';
   if (!f) { go('sharedErr'); return true; }
   if (f.expired) { expireShared(); return true; }
   $('sharedExpiry').textContent = `⏰ 이 결과는 ${fmtExp(f.exp)}까지 볼 수 있어요. 그 뒤에는 이 주소로 다시 열 수 없으니 필요하면 지금 이미지로 저장해 주세요.`;
   clearTimeout(openShared._t); openShared._t = setTimeout(expireShared, Math.min(f.exp - Date.now(), 2 ** 31 - 1));
+  $('sharedBrand').textContent = brandName(f.brand); document.title = `${brandName(f.brand)} 퍼스널컬러 결과`;
   S.final = f; S.faceShape = f.sharedFace; S.hairGender = f.sharedGender || 'f'; wake(); go('shared').then(renderResult); return true;
 }
 // 결과 전용 화면: 주소(#) 바꾸기·뒤로 가기로 다른 화면이나 다른 결과로 가지 않게 원래 주소로 되돌림

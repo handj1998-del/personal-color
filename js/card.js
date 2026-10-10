@@ -1,6 +1,6 @@
 // 결과 카드 PNG 렌더러 (색과 글자만, 얼굴 사진 없음)
 import { hexToRgb } from './color.js';
-import { drawQr, drawMark, brandName } from './qrcard.js';
+import { drawQr, drawMarkGlyph, brandName, isDefaultBrand } from './qrcard.js';
 import { FACE_SHAPES, GLASS_SHAPES, LIPS, FRAMES, BROW_PATHS, glassesPaths, HAIR_COLORS, HAIR_STYLES, HAIR_REC, HAIR_GENDERS } from './style.js';
 const FONT = "'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR','Noto Sans CJK KR','Nanum Gothic',sans-serif";
 const textColor = (hex) => { const [r, g, b] = hexToRgb(hex); return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#2a2433' : '#ffffff'; };
@@ -19,6 +19,13 @@ function wrap(ctx, text, maxW) {
 }
 function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
 
+// 왼쪽 위 상호 한 곳: 기본(H.O.W)이면 마크만(글자 높이 mh), 아니면 상호 글자만(fs px). y = 위쪽 기준
+function brandTop(ctx, brand, x, y, mh, fs, maxW) {
+  if (isDefaultBrand(brand)) { drawMarkGlyph(ctx, x, y, mh); return; }
+  ctx.fillStyle = '#2b2340'; ctx.font = `800 ${fs}px ${FONT}`; ctx.textBaseline = 'middle';
+  let nm = brandName(brand); while (ctx.measureText(nm).width > maxW && nm.length > 1) nm = nm.slice(0, -1);
+  ctx.fillText(nm, x, y + mh / 2); ctx.textBaseline = 'alphabetic';
+}
 // 결과 이미지 아래쪽 가벼운 저작권 안내 한 줄
 const COPY = (r) => `© ${brandName(r.brand)} · 이 이미지는 저작권법의 보호를 받습니다.`;
 export function renderCardCanvas(canvas, r) {
@@ -33,7 +40,7 @@ export function renderCardCanvas(canvas, r) {
       const g = ctx.createLinearGradient(0, 0, W, 0); S.best.slice(0, 6).forEach((c, i) => g.addColorStop(i / 5, c.hex));
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, 28);
       // v1.8.2: 상호는 왼쪽 위 한 곳에만 (H.O.W 마크 + 상호)
-      drawMark(ctx, P - 10, 50, 76); ctx.fillStyle = '#2b2340'; ctx.font = `800 46px ${FONT}`; ctx.textBaseline = 'middle'; ctx.fillText(brandName(r.brand), P + 74, 89); ctx.textBaseline = 'alphabetic';
+      brandTop(ctx, r.brand, P, 58, 46, 56, W - 2 * P);
     }
     y = 200;
     ctx.textBaseline = 'alphabetic';
@@ -171,7 +178,7 @@ export function renderStoryCanvas(canvas, r) {
   const g = ctx.createLinearGradient(0, 0, W, 0); S.best.slice(0, 6).forEach((c, i) => g.addColorStop(i / 5, c.hex));
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, 40); ctx.fillRect(0, H - 24, W, 24);
   ctx.textBaseline = 'alphabetic';
-  drawMark(ctx, P - 10, 64, 84); ctx.fillStyle = '#2b2340'; ctx.font = `800 50px ${FONT}`; ctx.textBaseline = 'middle'; ctx.fillText(brandName(r.brand), P + 82, 107); ctx.textBaseline = 'alphabetic';
+  brandTop(ctx, r.brand, P, 70, 52, 62, W - 2 * P);
   let y = 240;
   ctx.font = `600 38px ${FONT}`; ctx.fillStyle = '#7a6f86'; ctx.fillText('나의 퍼스널컬러', P, y);
   y += 110; ctx.font = `800 104px ${FONT}`; ctx.fillStyle = '#2a2433'; ctx.fillText(S.name, P, y);

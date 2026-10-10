@@ -586,7 +586,7 @@ $('btnSavePng').onclick = () => saveCard('full');
 $('btnSaveStory').onclick = () => saveCard('story');
 // v1.6: 'full' = 긴 결과 카드, 'story' = 인스타 스토리 크기(1080×1920). 둘 다 결과 보기 QR·주소 포함 (얼굴 사진 없음)
 // v1.7: 결과 이미지를 미리 만들어 둠 → 버튼을 누르는 즉시 공유 시트를 엶 (iPhone은 누른 뒤 시간이 걸리면 공유를 막음)
-const cardKey = () => (S.final ? [S.final.id, S.final.second?.id, S.final.conf.level, S.final.method, S.final.date, faceId(), S.hairGender].join('|') : '');
+const cardKey = () => (S.final ? [S.final.id, S.final.second?.id, S.final.conf.level, S.final.method, S.final.date, faceId(), S.hairGender, S.final.exp, bizName()].join('|') : '');
 let cardCache = { key: '', files: {} }, prepTimer = null;
 async function makeCardFile(kind) {
   const data = { ...S.final, faceId: faceId(), hairGender: S.hairGender, url: resultUrl(), appUrl: location.origin + location.pathname, legal: LEGAL_NOTICE, brand: bizName(), outfits: OUTFITS[S.final.id], celebs: CELEBS[S.final.id] };

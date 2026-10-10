@@ -5,9 +5,12 @@ import { loadFace, detectFace, faceStatus } from './face.js';
 import { renderCardCanvas, renderStoryCanvas } from './card.js';
 import { createStore, admit, STORAGE_PREFIX, readSyncQr } from './ticket.js';
 import { drawQr } from './qrcard.js';
-import { encodeResult, decodeResult, RESULT_RE } from './share.js';
+import { encodeResult, decodeResult, RESULT_RE, LEGAL_NOTICE, RESULT_TTL_MS } from './share.js';
 // 고객 휴대폰으로 연 결과 보기(#r=…): 서비스 워커(분석 엔진·모델 내려받기)·화면 꺼짐 방지·시계 기록을 건너뜀
 const SHARED_BOOT = RESULT_RE.test(location.hash);
+// v1.8: 결과 링크로 연 화면은 '결과 전용'으로 잠금 — 결과·저장 외 다른 화면(처음·동의·카메라·진단권·관리자·드레이핑)으로 이동 불가
+const LOCKED = SHARED_BOOT, LOCK_SCREENS = new Set(['shared', 'sharedErr', 'sharedExp']), LOCK_HASH = SHARED_BOOT ? location.hash : '';
+if (LOCKED) document.documentElement.classList.add('locked');
 import { initDecoder, decodeVideo, MAX_SIDE, MAX_SIDE_SYNC } from './qr.js';
 import { initAdmin } from './admin.js';
 import { faceMetrics, classifyFaceShape, FACE_SHAPES, FACE_ORDER, GLASS_SHAPES, LIPS, FRAMES, glassesSvg, browSvg, HAIR_COLORS, HAIR_STYLES, HAIR_REC, HAIR_GENDERS, hairSvg } from './style.js';
@@ -16,7 +19,7 @@ const $ = (id) => document.getElementById(id);
 const SVGNS = 'http://www.w3.org/2000/svg';
 const CAMERA_SCREENS = new Set(['ticket', 'calib', 'capture', 'drape', 'adminScan']);
 const SCAN_SCREENS = new Set(['ticket', 'adminScan']);
-const NO_IDLE = new Set(['home', 'shared']); // 고객 무동작 자동 초기화 제외 화면 (관리자는 별도 자동 로그아웃)
+const NO_IDLE = new Set(['home', 'shared', 'sharedErr', 'sharedExp']); // 고객 무동작 자동 초기화 제외 화면 (관리자는 별도 자동 로그아웃)
 const STEP_LABELS = [['consent', '동의'], ['ticket', '진단권'], ['calib', '보정'], ['capture', '촬영'], ['auto', '분석'], ['drape', '드레이핑'], ['result', '결과']];
 
 const fresh = () => ({ screen: 'home', after: null, resume: false, ticket: null, wb: null, auto: null, votes: [], roundIdx: 0, rounds: null, browse: { L: 'spring_light', R: 'summer_light', i: 0 }, drapeTab: 'rounds', final: null, drapeOnly: false, faceShape: null, resTab: 'color', hairGender: 'f', photo: null });
@@ -46,9 +49,10 @@ function ask(msg) {
 function setInert(on) { for (const el of document.querySelectorAll('body > header, body > main, #updBar')) { el.inert = on; if (on) el.setAttribute('aria-hidden', 'true'); else el.removeAttribute('aria-hidden'); } }
 function renderSteps() {
   const idx = STEP_LABELS.findIndex(([k]) => k === S.screen || (S.screen === 'analyzing' && k === 'auto'));
-  $('steps').innerHTML = S.screen === 'home' || S.screen === 'shared' || S.screen.startsWith('admin') ? '' : STEP_LABELS.map(([k, l], i) => `<span class="${i < idx ? 'done' : i === idx ? 'cur' : ''}">${l}</span>`).join('');
+  $('steps').innerHTML = S.screen === 'home' || LOCK_SCREENS.has(S.screen) || S.screen.startsWith('admin') ? '' : STEP_LABELS.map(([k, l], i) => `<span class="${i < idx ? 'done' : i === idx ? 'cur' : ''}">${l}</span>`).join('');
 }
 async function go(screen) {
+  if (LOCKED && !LOCK_SCREENS.has(screen)) return; // 결과 전용 화면에서는 다른 화면으로 못 감
   const my = ++seq;
   if (!$('resMore').hidden) setMore(false);
   S.screen = screen; document.body.dataset.screen = screen;
@@ -73,6 +77,7 @@ async function go(screen) {
 // ---------- 카메라 ----------
 const video = $('video');
 async function startCamera() {
+  if (LOCKED) return;
   if (stream) return true;
   if (!navigator.mediaDevices?.getUserMedia) {
     camFail(window.isSecureContext ? '이 브라우저는 카메라를 지원하지 않아요.' : '카메라는 HTTPS 주소나 localhost에서만 켜져요.');
@@ -559,7 +564,9 @@ function renderResult() {
     <div class="rpane" id="rpane" data-tab="${S.resTab}">${resultPane(S.resTab)}</div>
     ${faceDebug()}
     ${r.changed && S.auto ? `<p class="note">드레이핑 선택을 반영해 자동 분석(${SEASONS[S.auto.cls.top[0].id].name})과 다른 결과가 나왔어요.</p>` : ''}
+    ${S.screen === 'shared' ? '' : `<div class="myqr"><canvas id="resQr" width="300" height="300" role="img" aria-label="내 결과 받기 QR 코드"></canvas><div><h2 class="sec">📱 QR로 내 결과 받기</h2><p>고객 휴대폰 카메라로 찍으면 이 결과를 보고 이미지로 저장할 수 있어요. 결과만 열리고 다른 진단 화면으로는 이동할 수 없어요.</p></div></div>`}
     <p class="note">카메라와 조명에 따라 달라질 수 있는 추정 결과이고, 추천은 일반적인 스타일링 가이드에 따른 제안이에요. 실제 옷·안경·화장품·헤어를 대 보며 함께 확인해 주세요.</p>`;
+  const qc = $('resQr'); if (qc) { const c = qc.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, qc.width, qc.height); drawQr(c, resultUrl(), 0, 0, qc.width, 3); }
   prepCards();
 }
 for (const id of ['resultCard', 'sharedCard']) {
@@ -581,7 +588,7 @@ $('btnSaveStory').onclick = () => saveCard('story');
 const cardKey = () => (S.final ? [S.final.id, S.final.second?.id, S.final.conf.level, S.final.method, S.final.date, faceId(), S.hairGender].join('|') : '');
 let cardCache = { key: '', files: {} }, prepTimer = null;
 async function makeCardFile(kind) {
-  const data = { ...S.final, faceId: faceId(), hairGender: S.hairGender, url: resultUrl(), appUrl: location.origin + location.pathname, outfits: OUTFITS[S.final.id], celebs: CELEBS[S.final.id] };
+  const data = { ...S.final, faceId: faceId(), hairGender: S.hairGender, url: resultUrl(), appUrl: location.origin + location.pathname, legal: LEGAL_NOTICE, outfits: OUTFITS[S.final.id], celebs: CELEBS[S.final.id] };
   const cv = document.createElement('canvas'); (kind === 'story' ? renderStoryCanvas : renderCardCanvas)(cv, data);
   const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
   cv.width = cv.height = 1;
@@ -600,35 +607,53 @@ function prepCards() {
 function dropCards() { clearTimeout(prepTimer); cardCache = { key: '', files: {} }; }
 async function saveCard(kind = 'full') {
   if (!S.final) return;
+  if (S.screen === 'shared' && S.final.exp && Date.now() >= S.final.exp) { expireShared(); return; }
   const ready = cardCache.key === cardKey() ? cardCache.files[kind] : null;
   const file = ready || (await makeCardFile(kind)), blob = file;
   const name = file.name;
   if (/iPhone|iPad|Android/i.test(navigator.userAgent) && navigator.canShare?.({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: '퍼스널컬러 결과' }); return; } catch (e) {
+    try { await navigator.share({ files: [file], title: '퍼스널컬러 결과', text: LEGAL_NOTICE }); toast('⚖ ' + LEGAL_NOTICE, 6000); return; } catch (e) {
       if (e.name === 'AbortError') return;
       // 공유가 막혔으면(사용자 동작 시간 초과 등) 아래 다운로드로 대신 저장
     }
   }
   const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000); toast('결과 이미지를 저장했어요.');
+  setTimeout(() => URL.revokeObjectURL(url), 4000); toast('결과 이미지를 저장했어요. ⚖ ' + LEGAL_NOTICE, 6000);
 }
 
 // ---------- 결과를 고객 휴대폰으로 (서버 없이: 주소의 # 뒤에 결과 코드만 담음, #은 서버로 전송되지 않음) ----------
-const resultUrl = () => location.origin + location.pathname + '#r=' + encodeResult(S.final, faceId(), S.hairGender);
+// v1.8: 결과마다 만료 시각(24시간 뒤)을 한 번 정해 QR·결과 이미지에 같은 주소가 들어가게 함
+const resultExp = () => (S.final.exp ??= Math.ceil((Date.now() + RESULT_TTL_MS) / 60000) * 60000);
+const resultUrl = () => location.origin + location.pathname + '#r=' + encodeResult(S.final, faceId(), S.hairGender, resultExp());
+const fmtExp = (ms) => { const d = new Date(ms), p = (n) => String(n).padStart(2, '0'); return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
 $('btnResultQr').onclick = () => {
   if (!S.final) return;
   const cv = $('rqCanvas'), ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height); drawQr(ctx, resultUrl(), 0, 0, cv.width, 3);
   cv.dataset.url = resultUrl(); $('rqView').hidden = false;
 };
 $('btnRqClose').onclick = () => { $('rqView').hidden = true; const cv = $('rqCanvas'); cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); delete cv.dataset.url; };
+// 24시간이 지나면: 결과를 화면에서 지우고(삭제로 간주) 이 기기에 남았을 수 있는 결과 관련 데이터도 지움
+async function expireShared() {
+  clearTimeout(openShared._t); dropCards(); S.final = null; $('sharedCard').innerHTML = ''; $('sharedExpiry').textContent = '';
+  try { sessionStorage.clear(); for (const k of Object.keys(localStorage)) if (!k.startsWith(STORAGE_PREFIX)) localStorage.removeItem(k); } catch {}
+  try { if (!(await navigator.serviceWorker?.getRegistration?.())) for (const k of await caches.keys()) await caches.delete(k); } catch {}
+  go('sharedExp');
+}
 function openShared() {
   const m = /^#r=([0-9a-z]+)$/.exec(location.hash); if (!m) return false;
   const f = decodeResult(m[1]);
   S = fresh(); S.screen = 'shared';
-  if (!f) { go('home'); toast('결과 주소가 올바르지 않아요.', 4500); return true; }
+  if (!f) { go('sharedErr'); return true; }
+  if (f.expired) { expireShared(); return true; }
+  $('sharedExpiry').textContent = `⏰ 이 결과는 ${fmtExp(f.exp)}까지 볼 수 있어요. 그 뒤에는 이 주소로 다시 열 수 없으니 필요하면 지금 이미지로 저장해 주세요.`;
+  clearTimeout(openShared._t); openShared._t = setTimeout(expireShared, Math.min(f.exp - Date.now(), 2 ** 31 - 1));
   S.final = f; S.faceShape = f.sharedFace; S.hairGender = f.sharedGender || 'f'; wake(); go('shared').then(renderResult); return true;
 }
-window.addEventListener('hashchange', () => { if (location.hash.startsWith('#r=')) openShared(); });
+// 결과 전용 화면: 주소(#) 바꾸기·뒤로 가기로 다른 화면이나 다른 결과로 가지 않게 원래 주소로 되돌림
+function holdLock() { if (location.hash !== LOCK_HASH) history.replaceState(null, '', location.pathname + location.search + LOCK_HASH); }
+if (LOCKED) { window.addEventListener('hashchange', holdLock); window.addEventListener('popstate', holdLock); }
+// 매장 기기에서 결과 주소로 바뀌면 새로 열어 결과 전용 화면으로 (진단 화면과 섞이지 않게)
+else window.addEventListener('hashchange', () => { if (RESULT_RE.test(location.hash)) location.reload(); });
 
 // ---------- 고객 무동작 자동 초기화 (2분 30초 → '계속하시겠어요?' 20초 → 카메라 끄고 처음으로) ----------
 const IDLE = { ms: 150000, cd: 20000, last: Date.now(), promptAt: 0 };
@@ -648,6 +673,7 @@ $('btnIdleContinue').onclick = () => touchIdle();
 
 // ---------- 초기화 ----------
 async function resetAll(confirmFirst = true) {
+  if (LOCKED) return;
   if (confirmFirst && S.screen !== 'home' && !(await ask('지금까지의 진단 내용을 모두 지우고 처음으로 돌아갈까요?'))) return;
   stopCamera(); wipeWork(); clearPhoto(); dropCards(); setMore(false);
   S = fresh();
@@ -730,5 +756,6 @@ if (!SHARED_BOOT) { window.addEventListener('load', () => setTimeout(renderOffli
 $('btnUpdReload').onclick = () => location.reload(); // 진행 중이던 진단은 첫 화면의 [이어하기]로 계속
 $('btnUpdLater').onclick = () => { $('updBar').hidden = true; };
 if (!openShared()) go('home');
+if (LOCKED) for (const el of document.querySelectorAll('.screen:not([data-for=shared]):not([data-for=sharedErr]):not([data-for=sharedExp]), #btnReset, #btnFull, #steps, #updBar, #idlePrompt')) { el.inert = true; el.hidden = true; }
 // v1.6.2: v1.6.1에서 불러 둔 발급 키(개인키)는 더 이상 쓰지 않으므로 기기에서 지움
 try { globalThis.indexedDB?.deleteDatabase('pc-keys'); } catch {}

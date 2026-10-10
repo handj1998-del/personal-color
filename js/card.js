@@ -121,7 +121,8 @@ export function renderCardCanvas(canvas, r) {
     // v1.6: 결과 보기 QR(오른쪽) + 주소. QR에는 타입 코드만 담긴 주소(#r=…)가 들어감
     const qs = r.url ? 190 : 0, tw = W - 2 * P - (qs ? qs + 30 : 0), y0 = y - 30;
     const foot = [`두 번째 후보: ${r.second.name} · 신뢰도 ${r.conf.label} · ${r.method}`, ...wrap(ctx, `${r.date} · 카메라·조명에 따라 달라질 수 있는 추정이며, 추천은 스타일링 제안이에요.`, tw)];
-    if (r.url) foot.push('QR을 찍으면 이 결과를 다시 볼 수 있어요.', shortUrl(r.appUrl || r.url));
+    if (r.url) foot.push('📱 QR을 찍으면 내 결과를 받을 수 있어요.', shortUrl(r.appUrl || r.url));
+    if (r.legal) foot.push(...wrap(ctx, '⚖ ' + r.legal, tw));
     for (const ln of foot) { if (!measureOnly) { ctx.fillStyle = '#8a8094'; ctx.fillText(ln, P, y); } y += 40; }
     if (qs && !measureOnly) drawQr(ctx, r.url, W - P - qs, y0, qs, 2);
     return Math.max(y, y0 + qs + 20) + 40;
@@ -199,6 +200,7 @@ export function renderStoryCanvas(canvas, r) {
   ctx.font = `600 30px ${FONT}`; ctx.fillStyle = '#2a2433'; ctx.fillText(`신뢰도 ${r.conf.label} · ${r.method}`, P, qy + 50);
   ctx.font = `400 26px ${FONT}`; ctx.fillStyle = '#8a8094';
   ctx.fillText(`${r.date} · 카메라·조명에 따라 달라지는 추정이에요.`, P, qy + 100);
-  if (r.url) { ctx.fillText('QR로 결과 다시 보기', P, qy + 150); ctx.fillText(shortUrl(r.appUrl || r.url), P, qy + 192); }
+  if (r.url) { ctx.fillText('📱 QR로 내 결과 받기', P, qy + 150); ctx.fillText(shortUrl(r.appUrl || r.url), P, qy + 192); }
+  if (r.legal) { ctx.font = `400 21px ${FONT}`; ctx.fillStyle = '#8a8094'; wrap(ctx, '⚖ ' + r.legal, W - 2 * P).forEach((ln, i) => ctx.fillText(ln, P, H - 74 + i * 28)); }
   return canvas;
 }

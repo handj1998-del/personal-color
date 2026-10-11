@@ -32,6 +32,25 @@ export function drawMark(ctx, x, y, size, { bg = true } = {}) {
   SEASON_DOTS.forEach((c, i) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(196 + i * 40, 330, 13, 0, Math.PI * 2); ctx.fill(); });
   ctx.restore();
 }
+// v1.9: 새 H.O.W 로고 (투명 배경). 캔버스에 그리기 전에 logoReady()를 기다려 빈 로고가 나오지 않게 함
+const LOGO_SRC = ['icons/how-logo.webp', 'icons/how-logo.png'];
+let logoImg = null, logoP = null;
+export function logoReady() {
+  if (logoP) return logoP;
+  logoP = (async () => {
+    for (const src of LOGO_SRC) {
+      try { const im = new Image(); im.src = src; await im.decode(); logoImg = im; return im; } catch {}
+    }
+    logoP = null; return null; // 못 불러오면 다음에 다시 시도 (그동안은 그려 둔 마크로 대신)
+  })();
+  return logoP;
+}
+if (typeof document !== 'undefined') logoReady();
+// 로고를 글자 높이 h(px)로 (x,y)=왼쪽 위에 그림. 아직 못 불러왔으면 예전 마크로 대신 그림. 그린 너비를 돌려줌
+export function drawLogo(ctx, x, y, h) {
+  if (logoImg?.naturalWidth) { const w = h * logoImg.naturalWidth / logoImg.naturalHeight; ctx.drawImage(logoImg, x, y, w, h); return w; }
+  return drawMarkGlyph(ctx, x, y + h * 0.18, h * 0.64);
+}
 export const SEASON_DOTS = ['#f7a58c', '#b9d7f0', '#c47a5a', '#6d1a36'];
 export const brandName = (b) => String(b || '').trim().slice(0, 20) || 'H.O.W';
 // 상호가 기본값(H.O.W)이면 글자 대신 마크만, 다른 이름이면 이름 글자만 (둘 다 쓰지 않음)
@@ -50,7 +69,7 @@ export function drawCard(ctx, t, x0, y0, k, brand) {
   SEASON_DOTS.forEach((c, i) => { ctx.fillStyle = c; ctx.fillRect(i * W / 4, H - u(3.2), W / 4, u(0.9)); });
   ctx.strokeStyle = '#e4dcee'; ctx.lineWidth = u(0.3); rr(ctx, u(0.15), u(0.15), W - u(0.3), H - u(0.3), u(3.1)); ctx.stroke();
   // 마크 + 상호
-  if (isDefaultBrand(brand)) drawMarkGlyph(ctx, u(6), u(4.6), u(7.6));
+  if (isDefaultBrand(brand)) drawLogo(ctx, u(5.4), u(3.6), u(10));
   else {
     ctx.fillStyle = '#2b2340'; ctx.textBaseline = 'middle'; ctx.font = `800 ${u(6)}px ${FONT}`;
     let nm = name; while (ctx.measureText(nm).width > u(51) && nm.length > 1) nm = nm.slice(0, -1); if (nm !== name) nm += '…';

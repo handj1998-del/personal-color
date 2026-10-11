@@ -1,6 +1,6 @@
 // 결과 카드 PNG 렌더러 (색과 글자만, 얼굴 사진 없음)
 import { hexToRgb } from './color.js';
-import { drawQr, drawMarkGlyph, brandName, isDefaultBrand } from './qrcard.js';
+import { drawQr, drawLogo, brandName, isDefaultBrand } from './qrcard.js';
 import { FACE_SHAPES, GLASS_SHAPES, LIPS, FRAMES, BROW_PATHS, glassesPaths, HAIR_COLORS, HAIR_STYLES, HAIR_REC, HAIR_GENDERS } from './style.js';
 const FONT = "'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR','Noto Sans CJK KR','Nanum Gothic',sans-serif";
 const textColor = (hex) => { const [r, g, b] = hexToRgb(hex); return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#2a2433' : '#ffffff'; };
@@ -21,7 +21,7 @@ function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect
 
 // 왼쪽 위 상호 한 곳: 기본(H.O.W)이면 마크만(글자 높이 mh), 아니면 상호 글자만(fs px). y = 위쪽 기준
 function brandTop(ctx, brand, x, y, mh, fs, maxW) {
-  if (isDefaultBrand(brand)) { drawMarkGlyph(ctx, x, y, mh); return; }
+  if (isDefaultBrand(brand)) { drawLogo(ctx, x - 4, y - mh * 0.25, mh * 1.5); return; }
   ctx.fillStyle = '#2b2340'; ctx.font = `800 ${fs}px ${FONT}`; ctx.textBaseline = 'middle';
   let nm = brandName(brand); while (ctx.measureText(nm).width > maxW && nm.length > 1) nm = nm.slice(0, -1);
   ctx.fillText(nm, x, y + mh / 2); ctx.textBaseline = 'alphabetic';

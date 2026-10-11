@@ -4,7 +4,7 @@ import { SEASONS, SEASON_ORDER, drapeRounds, OUTFITS, CELEBS, CELEB_NOTE } from 
 import { loadFace, detectFace, faceStatus } from './face.js';
 import { renderCardCanvas, renderStoryCanvas } from './card.js';
 import { createStore, admit, STORAGE_PREFIX, readSyncQr } from './ticket.js';
-import { drawQr, brandName, isDefaultBrand } from './qrcard.js';
+import { drawQr, brandName, isDefaultBrand, logoReady } from './qrcard.js';
 import { encodeResult, decodeResult, RESULT_RE, LEGAL_NOTICE, RESULT_TTL_MS } from './share.js';
 // 고객 휴대폰으로 연 결과 보기(#r=…): 서비스 워커(분석 엔진·모델 내려받기)·화면 꺼짐 방지·시계 기록을 건너뜀
 const SHARED_BOOT = RESULT_RE.test(location.hash);
@@ -590,6 +590,7 @@ $('btnSaveStory').onclick = () => saveCard('story');
 const cardKey = () => (S.final ? [S.final.id, S.final.second?.id, S.final.conf.level, S.final.method, S.final.date, faceId(), S.hairGender, S.final.exp, bizName()].join('|') : '');
 let cardCache = { key: '', files: {} }, prepTimer = null;
 async function makeCardFile(kind) {
+  await logoReady();
   const data = { ...S.final, faceId: faceId(), hairGender: S.hairGender, url: resultUrl(), appUrl: location.origin + location.pathname, legal: LEGAL_NOTICE, brand: bizName(), outfits: OUTFITS[S.final.id], celebs: CELEBS[S.final.id] };
   const cv = document.createElement('canvas'); (kind === 'story' ? renderStoryCanvas : renderCardCanvas)(cv, data);
   const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));

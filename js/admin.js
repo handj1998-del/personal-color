@@ -1,6 +1,6 @@
 // 관리자 모드: 로그인(해시·잠금·자동 로그아웃), 진단권 발급·카드/A4/PDF, 목록·취소, QR 없이 1회 허가, 비밀번호 변경
 import { makeToken, tryLogin, lockState, makePwRecord, statusOf, fmtDay, ADMIN_IDLE_MS, LOCK_FAILS, randomId, makeBackup, readBackup, applyBackup, makeSyncQrs, stats, toCsv } from './ticket.js';
-import { renderCard, renderSheet, makePdf, SHEET, drawQr } from './qrcard.js';
+import { renderCard, renderSheet, makePdf, SHEET, drawQr, logoReady } from './qrcard.js';
 
 export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = () => {}, onCfg = () => {}, diag = {} }) {
   const PRINT_IDLE_MS = 15 * 60 * 1000;
@@ -52,8 +52,8 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
     store.addIssued(list); A.batch = list; A.idx = 0;
     $('issueResult').hidden = false; preview(); toast(`진단권 ${q}장을 발급했어요.${memo ? ' (' + memo + ')' : ''}`);
   }
-  function preview() {
-    const t = A.batch[A.idx]; if (!t) return;
+  async function preview() {
+    const t = A.batch[A.idx]; if (!t) return; await logoReady();
     const cv = renderCard(document.createElement('canvas'), t, 200, store.cfg().operator);
     $('cardPreview').src = cv.toDataURL('image/png'); cv.width = cv.height = 1;
     $('cardIdx').textContent = `${A.idx + 1} / ${A.batch.length} · No. ${t.id}`;
@@ -61,11 +61,11 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
   const step = (d) => { if (!A.batch.length) return; A.idx = (A.idx + d + A.batch.length) % A.batch.length; preview(); };
   function download(blob, name) { const u = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000); }
   const toBlob = (cv, type, q) => new Promise((r) => cv.toBlob(r, type, q));
-  async function cardPng() { const t = A.batch[A.idx]; if (!t) return; const cv = renderCard(document.createElement('canvas'), t, 300, store.cfg().operator); download(await toBlob(cv, 'image/png'), `진단권_${t.id}.png`); cv.width = 1; }
+  async function cardPng() { const t = A.batch[A.idx]; if (!t) return; await logoReady(); const cv = renderCard(document.createElement('canvas'), t, 300, store.cfg().operator); download(await toBlob(cv, 'image/png'), `진단권_${t.id}.png`); cv.width = 1; }
   const chunks = (list) => { const out = []; const per = SHEET.cols * SHEET.rows; for (let i = 0; i < list.length; i += per) out.push(list.slice(i, i + per)); return out; };
   async function pdf(list = A.pvList.length ? A.pvList : A.batch) {
     if (!list.length) return toast('먼저 진단권을 발급해 주세요.');
-    const pages = [];
+    const pages = []; await logoReady();
     for (const ch of chunks(list)) { const cv = renderSheet(document.createElement('canvas'), ch, 300, store.cfg().operator); const b = await toBlob(cv, 'image/jpeg', 0.92); pages.push({ bytes: new Uint8Array(await b.arrayBuffer()), w: cv.width, h: cv.height }); cv.width = 1; }
     download(makePdf(pages), `진단권_A4_${list.length}장.pdf`); toast('PDF를 저장했어요.');
   }
@@ -76,6 +76,7 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
     const btns = ['btnDoPrint', 'btnSheetPng', 'btnPvPdf'].map($); btns.forEach((b) => (b.disabled = true));
     $('printView').hidden = false; $('pvProgress').hidden = false;
     try {
+      await logoReady();
       for (let i = 0; i < cs.length; i++) {
         $('pvTitle').textContent = `인쇄 시트 만드는 중… ${i + 1} / ${cs.length}쪽`; $('pvBar').style.width = Math.round((i / cs.length) * 100) + '%';
         await new Promise((r) => setTimeout(r, 16)); // 화면에 진행 상황을 먼저 그림
@@ -85,7 +86,7 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
     } finally { $('pvProgress').hidden = true; btns.forEach((b) => (b.disabled = false)); A.busy = false; }
   }
   function closePv() { const box = $('pvPages'); [...box.querySelectorAll('img')].forEach((i) => URL.revokeObjectURL(i.src)); box.innerHTML = ''; $('printView').hidden = true; A.pvList = []; }
-  async function sheetPng() { const list = A.pvList; const cs = chunks(list); for (let i = 0; i < cs.length; i++) { const cv = renderSheet(document.createElement('canvas'), cs[i], 300, store.cfg().operator); download(await toBlob(cv, 'image/png'), `진단권_A4_${i + 1}.png`); cv.width = 1; } }
+  async function sheetPng() { await logoReady(); const list = A.pvList; const cs = chunks(list); for (let i = 0; i < cs.length; i++) { const cv = renderSheet(document.createElement('canvas'), cs[i], 300, store.cfg().operator); download(await toBlob(cv, 'image/png'), `진단권_A4_${i + 1}.png`); cv.width = 1; } }
   // ---------- 목록 ----------
   const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const batchKey = (it) => it.batch || 'b' + (it.at || 0);

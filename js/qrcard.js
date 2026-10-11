@@ -18,7 +18,7 @@ export function drawQr(ctx, text, x, y, size, quiet = 2) {
     ctx.fillRect(Math.floor(x + (c + quiet) * cell), Math.floor(y + (r + quiet) * cell), Math.ceil(cell), Math.ceil(cell));
   return m.n;
 }
-// H.O.W 콘셉트 1 마크 (흰 바탕 · 검정 H.O.W · 사계절 점 4개) — icons/icon.svg 와 같은 도형. size = 한 변(px)
+// H.O.W 콘셉트 1 마크 (흰 바탕 · 검정 H.O.W · 사계절 점 4개) — 예전 아이콘 도형 (새 로고를 못 불러올 때만 대신 그림). size = 한 변(px)
 export function drawMark(ctx, x, y, size, { bg = true } = {}) {
   const s = size / 512; ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
   if (bg) { rr(ctx, 0, 0, 512, 512, 96); ctx.fillStyle = '#fff'; ctx.fill(); }

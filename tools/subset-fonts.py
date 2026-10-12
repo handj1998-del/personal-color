@@ -20,8 +20,5 @@ def make(src, out, text, rename=None, latin_only=False):
   import os; print(out, round(os.path.getsize(O+out)/1024,1),'KB')
 KR=ASCII+extra+H
 make('PretendardVariable.ttf','pc-sans-var.woff2',KR,{'Pretendard':'PC Sans'})
-make('GowunBatang-Regular.ttf','gowun-batang-400.woff2',KR)
-make('GowunBatang-Bold.ttf','gowun-batang-700.woff2',KR)
 LAT=ASCII+'·–—‘’“”…©'
 make('CormorantGaramond[wght].ttf','cormorant-garamond-var.woff2',LAT)
-make('PlayfairDisplay[wght].ttf','pc-display-var.woff2',LAT,{'Playfair Display':'PC Display'})

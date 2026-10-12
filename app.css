@@ -327,14 +327,11 @@ html.boot-r #sharedCard:empty { min-height:110vh; }
 /* ---------- v2.0 글꼴 (자체 포함, OFL) ---------- */
 @font-face { font-family:'PC Sans'; src:url(fonts/pc-sans-var.woff2) format('woff2'); font-weight:100 900; font-display:swap; }
 @font-face { font-family:'Cormorant Garamond'; src:url(fonts/cormorant-garamond-var.woff2) format('woff2'); font-weight:300 700; font-display:swap; }
-@font-face { font-family:'PC Display'; src:url(fonts/pc-display-var.woff2) format('woff2'); font-weight:400 900; font-display:swap; }
-@font-face { font-family:'Gowun Batang'; src:url(fonts/gowun-batang-700.woff2) format('woff2'); font-weight:700; font-display:swap; }
 :root { --sys:'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR','Noto Sans CJK KR',system-ui,sans-serif; --font-body:'PC Sans',var(--sys); --font-head:var(--font-body); --font-latin:'Cormorant Garamond',Georgia,serif; --head-w:750; }
-html[data-font="b"] { --font-head:'Gowun Batang','PC Sans',var(--sys); --font-latin:'PC Display',Georgia,serif; --head-w:700; }
 :root { font-family:var(--font-body); }
 h1, h2, .card-head h1, .cv-title { font-family:var(--font-head); font-weight:var(--head-w); letter-spacing:-0.01em; }
 .latin { font-family:var(--font-latin); }
-html[data-font="a"] .card-head h1 { letter-spacing:-0.02em; }
+.card-head h1 { letter-spacing:-0.02em; }
 
 /* ---------- 표지 (매장 기기 첫 화면) ---------- */
 body[data-screen="cover"] .topbar { display:none; }
@@ -353,8 +350,8 @@ body[data-screen="cover"] .topbar { display:none; }
 .cv-cta { align-self:flex-start; font:inherit; font-size:clamp(17px, 2.2vw, 22px); font-weight:650; color:#fff; background:#1f2a44; border:0; border-radius:999px; padding:18px 30px; min-height:56px; box-shadow:0 10px 30px rgba(31,42,68,.18); }
 .cv-cta:focus-visible { outline:3px solid #c9a3ff; outline-offset:4px; }
 /* 콘셉트 1: Soft Bloom — 크림 바탕 위 번지는 파스텔 빛 */
-html[data-cover="bloom"] .cover { background:#fbf7f2; }
-html[data-cover="bloom"] .cv-bloom { display:block; }
+.cover { background:#fbf7f2; }
+.cv-bloom { display:block; }
 .cv-bloom i { position:absolute; border-radius:50%; filter:blur(48px); opacity:.85; animation:cvfloat 22s ease-in-out infinite alternate; }
 .cv-bloom i:nth-child(1) { width:62vmax; height:62vmax; left:-18vmax; top:-22vmax; background:radial-gradient(circle, #f8c3ab 0%, rgba(248,195,171,0) 68%); }
 .cv-bloom i:nth-child(2) { width:56vmax; height:56vmax; right:-20vmax; top:-6vmax; background:radial-gradient(circle, #efb1c0 0%, rgba(239,177,192,0) 68%); animation-delay:-6s; }
@@ -362,16 +359,6 @@ html[data-cover="bloom"] .cv-bloom { display:block; }
 .cv-bloom i:nth-child(4) { width:52vmax; height:52vmax; right:-16vmax; bottom:-22vmax; background:radial-gradient(circle, #cfc6ea 0%, rgba(207,198,234,0) 68%); animation-delay:-3s; }
 .cv-bloom i:nth-child(5) { width:22vmax; height:22vmax; right:12vmax; bottom:8vmax; background:radial-gradient(circle, rgba(44,62,100,.30) 0%, rgba(44,62,100,0) 70%); animation-delay:-15s; }
 @keyframes cvfloat { from { transform:translate3d(0,0,0) scale(1); } to { transform:translate3d(3vmax,-2vmax,0) scale(1.08); } }
-/* 콘셉트 2: Color Arc — 흰 바탕 · 오른쪽 위 8색 무지개 호 · 잡지 같은 배치 */
-html[data-cover="arc"] .cover { background:#ffffff; }
-html[data-cover="arc"] .cv-arc { display:block; left:auto; width:min(84vw, 70vh, 760px); height:min(84vw, 70vh, 760px); opacity:.9; }
-html[data-cover="arc"] .cv-main { margin-top:auto; margin-bottom:6vh; }
-html[data-cover="arc"] .cv-en { font-size:clamp(40px, 8vw, 92px); font-style:normal; font-weight:400; color:#1f2a44; margin:0 0 10px; order:-1; }
-html[data-cover="arc"] .cv-main { display:flex; flex-direction:column; }
-html[data-cover="arc"] .cv-eyebrow { order:-2; }
-html[data-cover="arc"] .cv-title { font-size:clamp(26px, 4.6vw, 48px); font-weight:600; color:#2c3554; }
-html[data-cover="arc"] .cv-cta { background:transparent; color:#1f2a44; border:2px solid #1f2a44; box-shadow:none; }
-html[data-cover="arc"] .cover::after { content:''; position:absolute; left:clamp(24px, 7vw, 88px); right:clamp(24px, 7vw, 88px); bottom:calc(max(32px, env(safe-area-inset-bottom)) + 86px); height:1px; background:#e4dde6; }
 @media (orientation:landscape) and (min-width:900px) { .cv-main { max-width:56vw; } }
 @media (max-height:520px) { .cv-sub { display:none; } .cv-eyebrow { margin-bottom:8px; } .cv-cta { padding:12px 22px; min-height:48px; } }
 @media (prefers-reduced-motion: reduce) { .cv-bloom i { animation:none; } }

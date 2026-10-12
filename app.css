@@ -1,5 +1,5 @@
 :root { color-scheme: only light; --bg:#f6f2ee; --ink:#2a2433; --sub:#6f6680; --line:#e4dde6; --pri:#5b3f8f; --pri2:#7a5bb5; --ok:#2f8f5b; --warn:#b7791f; --bad:#c0392b; --card:#fff;
-  font-family: 'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR','Noto Sans CJK KR','Nanum Gothic',system-ui,sans-serif; color:var(--ink); }
+  color:var(--ink); }
 * { box-sizing:border-box; }
 html,body { margin:0; height:100%; background:var(--bg); overflow:hidden; }
 body { display:flex; flex-direction:column; height:100vh; height:100dvh; -webkit-tap-highlight-color:transparent; }
@@ -324,3 +324,41 @@ body[data-screen="home"] #btnReset { display:none; }
 html.boot-r .screen:not([data-for^="shared"]) { display:none !important; }
 html.boot-r #btnReset, html.boot-r #btnFull, html.boot-r #steps { display:none !important; }
 html.boot-r #sharedCard:empty { min-height:110vh; }
+/* ---------- v2.0 글꼴 (자체 포함, OFL) ---------- */
+@font-face { font-family:'PC Sans'; src:url(fonts/pc-sans-var.woff2) format('woff2'); font-weight:100 900; font-display:swap; }
+@font-face { font-family:'Cormorant Garamond'; src:url(fonts/cormorant-garamond-var.woff2) format('woff2'); font-weight:300 700; font-display:swap; }
+:root { --sys:'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR','Noto Sans CJK KR',system-ui,sans-serif; --font-body:'PC Sans',var(--sys); --font-head:var(--font-body); --font-latin:'Cormorant Garamond',Georgia,serif; --head-w:750; }
+:root { font-family:var(--font-body); }
+h1, h2, .card-head h1, .cv-title { font-family:var(--font-head); font-weight:var(--head-w); letter-spacing:-0.01em; }
+.latin { font-family:var(--font-latin); }
+.card-head h1 { letter-spacing:-0.02em; }
+
+/* ---------- 표지 (매장 기기 첫 화면) ---------- */
+body[data-screen="cover"] .topbar { display:none; }
+.screen.cover { max-width:none; margin:0; min-height:0; }
+.cover { position:fixed; inset:0; z-index:6; overflow:hidden; cursor:pointer; display:flex; flex-direction:column; justify-content:space-between;
+  padding:max(28px, env(safe-area-inset-top)) clamp(24px, 7vw, 88px) max(32px, env(safe-area-inset-bottom)); color:#1f2a44; }
+.cover[hidden] { display:none; }
+.cv-bg { position:absolute; inset:0; z-index:-1; pointer-events:none; display:none; }
+.cv-top, .cv-main, .cv-cta { position:relative; }
+.cv-logo img { display:block; height:24px; width:auto; }
+.cv-main { margin:auto 0; max-width:720px; }
+.cv-eyebrow { margin:0 0 18px; font-size:clamp(15px, 2vw, 20px); letter-spacing:.32em; text-transform:uppercase; color:#4a4f6a; font-weight:500; }
+.cv-title { margin:0; font-size:clamp(36px, 7.4vw, 76px); line-height:1.18; color:#1f2a44; word-break:keep-all; }
+.cv-en { margin:14px 0 0; font-size:clamp(28px, 5vw, 54px); font-style:italic; font-weight:500; color:#3b4a6b; }
+.cv-sub { margin:22px 0 0; font-size:clamp(16px, 2.2vw, 21px); color:#4a4f6a; }
+.cv-cta { align-self:flex-start; font:inherit; font-size:clamp(17px, 2.2vw, 22px); font-weight:650; color:#fff; background:#1f2a44; border:0; border-radius:999px; padding:18px 30px; min-height:56px; box-shadow:0 10px 30px rgba(31,42,68,.18); }
+.cv-cta:focus-visible { outline:3px solid #c9a3ff; outline-offset:4px; }
+/* 콘셉트 1: Soft Bloom — 크림 바탕 위 번지는 파스텔 빛 */
+.cover { background:#fbf7f2; }
+.cv-bloom { display:block; }
+.cv-bloom i { position:absolute; border-radius:50%; filter:blur(48px); opacity:.85; animation:cvfloat 22s ease-in-out infinite alternate; }
+.cv-bloom i:nth-child(1) { width:62vmax; height:62vmax; left:-18vmax; top:-22vmax; background:radial-gradient(circle, #f8c3ab 0%, rgba(248,195,171,0) 68%); }
+.cv-bloom i:nth-child(2) { width:56vmax; height:56vmax; right:-20vmax; top:-6vmax; background:radial-gradient(circle, #efb1c0 0%, rgba(239,177,192,0) 68%); animation-delay:-6s; }
+.cv-bloom i:nth-child(3) { width:60vmax; height:60vmax; left:-10vmax; bottom:-30vmax; background:radial-gradient(circle, #bcd3c5 0%, rgba(188,211,197,0) 68%); animation-delay:-11s; }
+.cv-bloom i:nth-child(4) { width:52vmax; height:52vmax; right:-16vmax; bottom:-22vmax; background:radial-gradient(circle, #cfc6ea 0%, rgba(207,198,234,0) 68%); animation-delay:-3s; }
+.cv-bloom i:nth-child(5) { width:22vmax; height:22vmax; right:12vmax; bottom:8vmax; background:radial-gradient(circle, rgba(44,62,100,.30) 0%, rgba(44,62,100,0) 70%); animation-delay:-15s; }
+@keyframes cvfloat { from { transform:translate3d(0,0,0) scale(1); } to { transform:translate3d(3vmax,-2vmax,0) scale(1.08); } }
+@media (orientation:landscape) and (min-width:900px) { .cv-main { max-width:56vw; } }
+@media (max-height:520px) { .cv-sub { display:none; } .cv-eyebrow { margin-bottom:8px; } .cv-cta { padding:12px 22px; min-height:48px; } }
+@media (prefers-reduced-motion: reduce) { .cv-bloom i { animation:none; } }

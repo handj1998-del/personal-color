@@ -20,7 +20,9 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 const SVGNS = 'http://www.w3.org/2000/svg';
 const CAMERA_SCREENS = new Set(['ticket', 'calib', 'capture', 'drape', 'adminScan']);
 const SCAN_SCREENS = new Set(['ticket', 'adminScan']);
-const NO_IDLE = new Set(['home', 'shared', 'sharedErr', 'sharedExp']); // 고객 무동작 자동 초기화 제외 화면 (관리자는 별도 자동 로그아웃)
+const NO_IDLE = new Set(['cover', 'home', 'shared', 'sharedErr', 'sharedExp']);
+// 표지(커버): 매장 기기 첫 화면. 테스트 도구는 window.__PC_NOCOVER=1 로 건너뜀
+const START = window.__PC_NOCOVER === 1 ? 'home' : 'cover'; // 고객 무동작 자동 초기화 제외 화면 (관리자는 별도 자동 로그아웃)
 const STEP_LABELS = [['consent', '동의'], ['ticket', '진단권'], ['calib', '보정'], ['capture', '촬영'], ['auto', '분석'], ['drape', '드레이핑'], ['result', '결과']];
 
 const fresh = () => ({ screen: 'home', after: null, resume: false, ticket: null, wb: null, auto: null, votes: [], roundIdx: 0, rounds: null, browse: { L: 'spring_light', R: 'summer_light', i: 0 }, drapeTab: 'rounds', final: null, drapeOnly: false, faceShape: null, resTab: 'color', hairGender: 'f', photo: null });
@@ -50,7 +52,7 @@ function ask(msg) {
 function setInert(on) { for (const el of document.querySelectorAll('body > header, body > main, #updBar')) { el.inert = on; if (on) el.setAttribute('aria-hidden', 'true'); else el.removeAttribute('aria-hidden'); } }
 function renderSteps() {
   const idx = STEP_LABELS.findIndex(([k]) => k === S.screen || (S.screen === 'analyzing' && k === 'auto'));
-  $('steps').innerHTML = S.screen === 'home' || LOCK_SCREENS.has(S.screen) || S.screen.startsWith('admin') ? '' : STEP_LABELS.map(([k, l], i) => `<span class="${i < idx ? 'done' : i === idx ? 'cur' : ''}">${l}</span>`).join('');
+  $('steps').innerHTML = S.screen === 'home' || S.screen === 'cover' || LOCK_SCREENS.has(S.screen) || S.screen.startsWith('admin') ? '' : STEP_LABELS.map(([k, l], i) => `<span class="${i < idx ? 'done' : i === idx ? 'cur' : ''}">${l}</span>`).join('');
 }
 async function go(screen) {
   if (LOCKED && !LOCK_SCREENS.has(screen)) return; // 결과 전용 화면에서는 다른 화면으로 못 감
@@ -693,7 +695,7 @@ async function resetAll(confirmFirst = true) {
   setDrape('transparent', null, '', '');
   // 진단 데이터는 저장하지 않지만, 혹시 남은 값이 있으면 지움 (진단권 사용 기록 pcqr.* 만 유지: 코드 ID·시각, 개인정보 없음)
   try { sessionStorage.clear(); for (const k of Object.keys(localStorage)) if (!k.startsWith(STORAGE_PREFIX)) localStorage.removeItem(k); } catch {}
-  await go('home');
+  await go(START);
 }
 $('btnReset').onclick = () => resetAll(true);
 $('btnNextCustomer').onclick = () => resetAll(false);
@@ -734,7 +736,7 @@ if (!SHARED_BOOT && 'serviceWorker' in navigator && (location.protocol === 'http
   // 새 버전이 설치되면 진행 중인 진단을 방해하지 않게 '새로고침' 안내만 띄움
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) $('updBar').hidden = false; });
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').then((reg) => { setInterval(() => { if (S.screen === 'home') reg.update().catch(() => {}); }, 30 * 60 * 1000); }).catch(() => {}));
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').then((reg) => { setInterval(() => { if (S.screen === 'home' || S.screen === 'cover') reg.update().catch(() => {}); }, 30 * 60 * 1000); }).catch(() => {}));
 }
 // 첫 화면 아래 버전 표시: 실행 중인 서비스 워커에 물어봄 (없으면 sw.js 파일의 값). 버전 값은 sw.js 한 곳에만 있음
 async function appVersion() {
@@ -763,7 +765,10 @@ async function renderOffline() {
 if (!SHARED_BOOT) { window.addEventListener('load', () => setTimeout(renderOffline, 800)); navigator.serviceWorker?.addEventListener('controllerchange', () => setTimeout(renderOffline, 500)); }
 $('btnUpdReload').onclick = () => location.reload(); // 진행 중이던 진단은 첫 화면의 [이어하기]로 계속
 $('btnUpdLater').onclick = () => { $('updBar').hidden = true; };
-if (!openShared()) go('home');
+if (!openShared()) go(START);
+// 표지: 아무 곳이나 누르거나 Enter·Space → 첫 화면
+$('coverScreen').addEventListener('click', () => { if (S.screen === 'cover') go('home'); });
+document.addEventListener('keydown', (e) => { if (S.screen === 'cover' && (e.key === 'Enter' || e.key === ' ') && e.target === document.body) { e.preventDefault(); go('home'); } });
 if (LOCKED) for (const el of document.querySelectorAll('.screen:not([data-for=shared]):not([data-for=sharedErr]):not([data-for=sharedExp]), #btnReset, #btnFull, #steps, #updBar, #idlePrompt')) { el.inert = true; el.hidden = true; }
 // v1.6.2: v1.6.1에서 불러 둔 발급 키(개인키)는 더 이상 쓰지 않으므로 기기에서 지움
 try { globalThis.indexedDB?.deleteDatabase('pc-keys'); } catch {}

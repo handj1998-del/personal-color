@@ -1,8 +1,8 @@
 // 오프라인 캐시 (외부 요청 없음). 버전을 올리면 새 파일로 교체됨
 // 버전 정보는 여기 한 곳에만 둠 (첫 화면 아래 표시도 이 값을 읽음)
-const VERSION = 'pc-v1.9.1', BUILD_DATE = '2026-10-11';
+const VERSION = 'pc-v2.0.0', BUILD_DATE = '2026-10-12';
 const CORE = [
-  './', 'index.html', 'app.css', 'manifest.webmanifest', 'icons/favicon-64.png', 'icons/how-logo-120.webp', 'icons/how-logo-120.png', 'icons/how-logo.webp', 'icons/how-logo.png',
+  './', 'index.html', 'app.css', 'manifest.webmanifest', 'icons/favicon-64.png', 'fonts/pc-sans-var.woff2', 'fonts/cormorant-garamond-var.woff2', 'fonts/pc-display-var.woff2', 'fonts/gowun-batang-700.woff2', 'icons/how-logo-120.webp', 'icons/how-logo-120.png', 'icons/how-logo.webp', 'icons/how-logo.png',
   'js/boot.js', 'js/app.js', 'js/color.js', 'js/analyzer.js', 'js/seasons.js', 'js/face.js', 'js/card.js', 'js/style.js', 'js/ticket.js', 'js/qr.js', 'js/admin.js', 'js/qrcard.js', 'js/share.js', 'vendor/qr/jsqr.mjs', 'vendor/qr/qrcode.mjs',
 ];
 // 없어도 앱은 동작(얼굴 자동 인식 대신 타원 가이드 사용). 있으면 오프라인용으로 함께 저장

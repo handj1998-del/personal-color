@@ -2,7 +2,7 @@
 import { hexToRgb } from './color.js';
 import { drawQr, drawLogo, brandName, isDefaultBrand } from './qrcard.js';
 import { FACE_SHAPES, GLASS_SHAPES, LIPS, FRAMES, BROW_PATHS, glassesPaths, HAIR_COLORS, HAIR_STYLES, HAIR_REC, HAIR_GENDERS } from './style.js';
-const FONT = "'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR','Noto Sans CJK KR','Nanum Gothic',sans-serif";
+const FONT = "'PC Sans','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR','Noto Sans CJK KR','Nanum Gothic',sans-serif";
 const textColor = (hex) => { const [r, g, b] = hexToRgb(hex); return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#2a2433' : '#ffffff'; };
 
 function wrap(ctx, text, maxW) {

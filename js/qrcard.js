@@ -1,7 +1,7 @@
 // 진단권 카드(90×50mm 명함 크기) · A4 인쇄 시트(10장, 재단선) · PDF 만들기 — 모두 기기 안에서 처리
 import qrcode from '../vendor/qr/qrcode.mjs';
 import { fmtDay } from './ticket.js';
-const FONT = "'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR','Noto Sans CJK KR','Nanum Gothic',sans-serif";
+const FONT = "'PC Sans','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR','Noto Sans CJK KR','Nanum Gothic',sans-serif";
 const MONO = "'DejaVu Sans Mono','Menlo','Consolas',monospace";
 export const CARD_MM = { w: 90, h: 50 };
 export const A4_MM = { w: 210, h: 297 };
@@ -38,6 +38,8 @@ let logoImg = null, logoP = null;
 export function logoReady() {
   if (logoP) return logoP;
   logoP = (async () => {
+    // 카드 글꼴도 먼저 불러옴 (없으면 기기 기본 글꼴)
+    try { await Promise.race([Promise.all(['400 20px', '600 20px', '800 40px'].map((w) => document.fonts.load(`${w} 'PC Sans'`, '퍼스널컬러 진단 0'))), new Promise((r) => setTimeout(r, 3000))]); } catch {}
     for (const src of LOGO_SRC) {
       try { const im = new Image(); im.src = src; await im.decode(); logoImg = im; return im; } catch {}
     }

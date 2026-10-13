@@ -414,3 +414,4 @@ h1, h2 { color:var(--navy); }
 .btn.primary:focus-visible { outline-color:#d47a92; }
 @media (max-width:600px) { .eyebrow { font-size:19px; } .card { border-radius:24px; } }
 @media (prefers-reduced-motion: reduce) { .btn { transition:none; } }
+@media (max-width:600px) { .screen > .bigbtns::before { inset:-14px -14px 0; } }

@@ -1,9 +1,9 @@
 // 오프라인 캐시 (외부 요청 없음). 버전을 올리면 새 파일로 교체됨
 // 버전 정보는 여기 한 곳에만 둠 (첫 화면 아래 표시도 이 값을 읽음)
-const VERSION = 'pc-v2.1.0', BUILD_DATE = '2026-10-13';
+const VERSION = 'pc-v2.2.0', BUILD_DATE = '2026-10-13';
 const CORE = [
   './', 'index.html', 'app.css', 'manifest.webmanifest', 'icons/favicon-64.png', 'fonts/pc-sans-var.woff2', 'fonts/cormorant-garamond-var.woff2', 'icons/how-logo-120.webp', 'icons/how-logo-120.png', 'icons/how-logo.webp', 'icons/how-logo.png',
-  'js/boot.js', 'js/app.js', 'js/color.js', 'js/analyzer.js', 'js/seasons.js', 'js/face.js', 'js/card.js', 'js/style.js', 'js/ticket.js', 'js/qr.js', 'js/admin.js', 'js/qrcard.js', 'js/share.js', 'vendor/qr/jsqr.mjs', 'vendor/qr/qrcode.mjs',
+  'js/boot.js', 'js/app.js', 'js/color.js', 'js/analyzer.js', 'js/seasons.js', 'js/face.js', 'js/card.js', 'js/style.js', 'js/ticket.js', 'js/qr.js', 'js/admin.js', 'js/qrcard.js', 'js/share.js', 'js/cosmetics.js', 'data/cosmetics.json', 'vendor/qr/jsqr.mjs', 'vendor/qr/qrcode.mjs',
 ];
 // 없어도 앱은 동작(얼굴 자동 인식 대신 타원 가이드 사용). 있으면 오프라인용으로 함께 저장
 const OPTIONAL = [
@@ -39,6 +39,14 @@ self.addEventListener('message', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.endsWith('/sw.js')) return;
+  // v2.2: 제품 정보(data/cosmetics.json)는 네트워크 우선 → 매주 갱신이 앱 버전 올림 없이 반영. 오프라인이면 저장본
+  if (url.pathname.endsWith('/data/cosmetics.json')) {
+    e.respondWith(caches.open(VERSION).then(async (c) => {
+      try { const res = await fetch(e.request.url, { cache: 'no-store' }); if (res.ok) { await c.put(new URL('data/cosmetics.json', self.registration.scope).href, res.clone()); return res; } } catch {}
+      return (await c.match(new URL('data/cosmetics.json', self.registration.scope).href)) || new Response('null', { status: 503, headers: { 'Content-Type': 'application/json' } });
+    }));
+    return;
+  }
   e.respondWith(caches.open(VERSION).then(async (c) => {
     const hit = await c.match(e.request, { ignoreSearch: true });
     if (hit) return hit;

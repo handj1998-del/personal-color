@@ -66,30 +66,32 @@ function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect
 export function drawCard(ctx, t, x0, y0, k, brand) {
   const W = CARD_MM.w * k, H = CARD_MM.h * k, u = (mm) => mm * k, name = brandName(brand);
   ctx.save(); ctx.translate(x0, y0);
-  rr(ctx, 0, 0, W, H, u(3.2)); ctx.fillStyle = '#fff'; ctx.fill(); ctx.clip();
-  ctx.fillStyle = '#2b2340'; ctx.fillRect(0, H - u(3.2), W, u(3.2)); // 아래 띠 (앱 상단 바 색)
+  rr(ctx, 0, 0, W, H, u(3.2)); ctx.fillStyle = '#fbf7f2'; ctx.fill(); ctx.clip();
+  // v2.1: 왼쪽 위 은은한 파스텔 번짐 (QR 영역은 흰 바탕 그대로)
+  [[0, 0, '248,195,171'], [W * 0.45, -u(8), '239,177,192'], [0, H, '188,211,197']].forEach(([x, y, c]) => { const g = ctx.createRadialGradient(x, y, 0, x, y, u(38)); g.addColorStop(0, `rgba(${c},.45)`); g.addColorStop(1, `rgba(${c},0)`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); });
+  ctx.fillStyle = '#1f2a44'; ctx.fillRect(0, H - u(3.2), W, u(3.2)); // 아래 띠 (앱 상단 바 색)
   SEASON_DOTS.forEach((c, i) => { ctx.fillStyle = c; ctx.fillRect(i * W / 4, H - u(3.2), W / 4, u(0.9)); });
-  ctx.strokeStyle = '#e4dcee'; ctx.lineWidth = u(0.3); rr(ctx, u(0.15), u(0.15), W - u(0.3), H - u(0.3), u(3.1)); ctx.stroke();
+  ctx.strokeStyle = '#ebe3dc'; ctx.lineWidth = u(0.3); rr(ctx, u(0.15), u(0.15), W - u(0.3), H - u(0.3), u(3.1)); ctx.stroke();
   // 마크 + 상호
   if (isDefaultBrand(brand)) drawLogo(ctx, u(5.4), u(3.6), u(10));
   else {
-    ctx.fillStyle = '#2b2340'; ctx.textBaseline = 'middle'; ctx.font = `800 ${u(6)}px ${FONT}`;
+    ctx.fillStyle = '#1f2a44'; ctx.textBaseline = 'middle'; ctx.font = `800 ${u(6)}px ${FONT}`;
     let nm = name; while (ctx.measureText(nm).width > u(51) && nm.length > 1) nm = nm.slice(0, -1); if (nm !== name) nm += '…';
     ctx.fillText(nm, u(6), u(9));
   }
   // 제목·일련번호·날짜
   ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#5b3f8f'; ctx.font = `800 ${u(4.6)}px ${FONT}`; ctx.fillText('퍼스널컬러 진단권', u(6), u(22));
-  ctx.font = `600 ${u(2)}px ${FONT}`; ctx.fillStyle = '#6f6680'; ctx.fillText('PERSONAL COLOR PASS · 1회 사용', u(6), u(25.6));
-  ctx.fillStyle = '#2b2340'; ctx.font = `700 ${u(3.3)}px ${MONO}`; ctx.fillText(`No. ${t.id.slice(0, 4)} ${t.id.slice(4)}`, u(6), u(33));
-  ctx.font = `500 ${u(2.1)}px ${FONT}`; ctx.fillStyle = '#3d3547';
+  ctx.fillStyle = '#1f2a44'; ctx.font = `800 ${u(4.6)}px ${FONT}`; ctx.fillText('퍼스널컬러 진단권', u(6), u(22));
+  ctx.font = `600 ${u(2)}px ${FONT}`; ctx.fillStyle = '#5b6178'; ctx.fillText('PERSONAL COLOR PASS · 1회 사용', u(6), u(25.6));
+  ctx.fillStyle = '#1f2a44'; ctx.font = `700 ${u(3.3)}px ${MONO}`; ctx.fillText(`No. ${t.id.slice(0, 4)} ${t.id.slice(4)}`, u(6), u(33));
+  ctx.font = `500 ${u(2.1)}px ${FONT}`; ctx.fillStyle = '#333c58';
   ctx.fillText(`발급 ${fmtDay(t.issued)}   유효 ${t.exp ? '~' + fmtDay(t.exp) : '기한 없음'}`, u(6), u(37.6));
-  ctx.font = `500 ${u(1.75)}px ${MONO}`; ctx.fillStyle = '#6f6680'; ctx.fillText(t.code, u(6), u(41));
+  ctx.font = `500 ${u(1.75)}px ${MONO}`; ctx.fillStyle = '#5b6178'; ctx.fillText(t.code, u(6), u(41));
   // QR: 흰 바탕 카드 위라 주변 여백(quiet zone)이 넉넉함. 얇은 보라 테두리만 바깥에
   const qs = u(27), qx = W - qs - u(5), qy = u(6.5);
-  rr(ctx, qx - u(1.4), qy - u(1.4), qs + u(2.8), qs + u(2.8), u(2)); ctx.strokeStyle = '#5b3f8f'; ctx.lineWidth = u(0.35); ctx.stroke();
+  rr(ctx, qx - u(1.4), qy - u(1.4), qs + u(2.8), qs + u(2.8), u(2)); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#1f2a44'; ctx.lineWidth = u(0.35); ctx.stroke();
   drawQr(ctx, t.token, qx, qy, qs, 2);
-  ctx.fillStyle = '#5b3f8f'; ctx.font = `700 ${u(1.9)}px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText('매장 기기 카메라에 보여 주세요', qx + qs / 2, qy + qs + u(4.3)); ctx.textAlign = 'left';
+  ctx.fillStyle = '#1f2a44'; ctx.font = `700 ${u(1.9)}px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText('매장 기기 카메라에 보여 주세요', qx + qs / 2, qy + qs + u(4.3)); ctx.textAlign = 'left';
   ctx.restore();
 }
 export function renderCard(canvas, t, dpi = 300, brand) {

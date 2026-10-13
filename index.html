@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; img-src 'self' blob: data:; media-src 'self' blob: mediastream:; style-src 'self' 'unsafe-inline'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
-<meta name="theme-color" content="#2b2340">
+<meta name="theme-color" content="#fbf7f2">
 <meta name="color-scheme" content="light only">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -91,6 +91,7 @@
       <button class="cv-cta" id="btnCover" type="button">화면을 눌러 시작하기 <span aria-hidden="true">→</span></button>
     </div>
     <div class="screen" data-for="home">
+      <p class="eyebrow latin" lang="en">Personal Color Studio</p>
       <button class="linkbtn" id="btnAdmin" type="button">관리자<i class="passdot" id="passDot" hidden></i></button>
       <h1>퍼스널컬러 진단</h1>
       <p class="lead">카메라로 피부·눈동자·머리카락 색을 측정해 사계절 8타입 중 어울리는 타입을 추정하고, 드레이핑으로 직접 비교해 확인해요.</p>
@@ -110,6 +111,7 @@
 
     <!-- 진단권(QR) 확인 -->
     <div class="screen" data-for="ticket">
+      <p class="eyebrow latin" lang="en">Your pass</p>
       <h2>진단권 확인</h2>
       <p class="lead sm">진단권 카드의 <b>QR 코드</b>를 화면의 네모 안에 보여 주세요.</p>
       <p class="camnote">📷 카메라는 QR 확인에만 쓰고 저장하지 않아요. (⇄ 버튼으로 앞/뒤 카메라 전환)</p>
@@ -231,6 +233,7 @@
 
     <!-- 동의 -->
     <div class="screen" data-for="consent">
+      <p class="eyebrow latin" lang="en">Before we begin</p>
       <h2>촬영 전 안내</h2>
       <ul class="consent-list">
         <li><b>이용 목적</b> 어울리는 색(퍼스널컬러)을 추정하고 드레이핑으로 비교하기 위해 카메라로 얼굴 색을 측정해요.</li>
@@ -251,6 +254,7 @@
 
     <!-- 보정 -->
     <div class="screen" data-for="calib">
+      <p class="eyebrow latin" lang="en">Light check</p>
       <h2>1. 조명 확인 · 흰 종이 보정</h2>
       <ul class="tips">
         <li>☀️ 창가의 <b>자연광</b>에서, 얼굴 정면으로 빛이 오게 해 주세요. 직사광선·노란 조명은 피해 주세요.</li>
@@ -268,6 +272,7 @@
 
     <!-- 촬영 -->
     <div class="screen" data-for="capture">
+      <p class="eyebrow latin" lang="en">Portrait</p>
       <h2>2. 얼굴 촬영</h2>
       <ul class="tips">
         <li>얼굴을 <b>타원 안</b>에 맞추고 정면을 봐 주세요.</li>
@@ -289,6 +294,7 @@
 
     <!-- 자동 분석 결과 -->
     <div class="screen" data-for="auto">
+      <p class="eyebrow latin" lang="en">First reading</p>
       <h2>자동 분석 결과 <span class="chip" id="autoConf"></span></h2>
       <div id="autoBody"></div>
       <div class="bigbtns">

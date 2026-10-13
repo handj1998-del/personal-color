@@ -3,7 +3,7 @@ import { hexToRgb } from './color.js';
 import { drawQr, drawLogo, brandName, isDefaultBrand } from './qrcard.js';
 import { FACE_SHAPES, GLASS_SHAPES, LIPS, FRAMES, BROW_PATHS, glassesPaths, HAIR_COLORS, HAIR_STYLES, HAIR_REC, HAIR_GENDERS } from './style.js';
 const FONT = "'PC Sans','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR','Noto Sans CJK KR','Nanum Gothic',sans-serif";
-const textColor = (hex) => { const [r, g, b] = hexToRgb(hex); return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#2a2433' : '#ffffff'; };
+const textColor = (hex) => { const [r, g, b] = hexToRgb(hex); return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#1f2a44' : '#ffffff'; };
 
 function wrap(ctx, text, maxW) {
   // 단어(띄어쓰기) 단위 줄바꿈, 너무 긴 단어만 글자 단위로 자름
@@ -22,12 +22,14 @@ function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect
 // 왼쪽 위 상호 한 곳: 기본(H.O.W)이면 마크만(글자 높이 mh), 아니면 상호 글자만(fs px). y = 위쪽 기준
 function brandTop(ctx, brand, x, y, mh, fs, maxW) {
   if (isDefaultBrand(brand)) { drawLogo(ctx, x - 4, y - mh * 0.25, mh * 1.5); return; }
-  ctx.fillStyle = '#2b2340'; ctx.font = `800 ${fs}px ${FONT}`; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#1f2a44'; ctx.font = `800 ${fs}px ${FONT}`; ctx.textBaseline = 'middle';
   let nm = brandName(brand); while (ctx.measureText(nm).width > maxW && nm.length > 1) nm = nm.slice(0, -1);
   ctx.fillText(nm, x, y + mh / 2); ctx.textBaseline = 'alphabetic';
 }
 // 결과 이미지 아래쪽 가벼운 저작권 안내 한 줄
 const COPY = (r) => `© ${brandName(r.brand)} · 이 이미지는 저작권법의 보호를 받습니다.`;
+// v2.1: 표지와 같은 파스텔 번짐 배경
+const bloom = (ctx, W, H) => { [[0.08, 0.06, '248,195,171'], [0.95, 0.12, '239,177,192'], [0.05, 0.98, '188,211,197'], [0.96, 0.95, '207,198,234']].forEach(([x, y, c]) => { const r = Math.max(W, H) * 0.42, g = ctx.createRadialGradient(x * W, y * H, 0, x * W, y * H, r); g.addColorStop(0, `rgba(${c},.42)`); g.addColorStop(1, `rgba(${c},0)`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }); };
 export function renderCardCanvas(canvas, r) {
   const S = r.season, W = 1080, P = 72;
   const ctx = canvas.getContext('2d');
@@ -36,7 +38,8 @@ export function renderCardCanvas(canvas, r) {
     let y = 0;
     const accent = S.best[4].hex;
     if (!measureOnly) {
-      ctx.fillStyle = '#fbf8f4'; ctx.fillRect(0, 0, W, canvas.height);
+      ctx.fillStyle = '#fbf7f2'; ctx.fillRect(0, 0, W, canvas.height);
+      bloom(ctx, W, canvas.height);
       const g = ctx.createLinearGradient(0, 0, W, 0); S.best.slice(0, 6).forEach((c, i) => g.addColorStop(i / 5, c.hex));
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, 28);
       // v1.8.2: 상호는 왼쪽 위 한 곳에만 (H.O.W 마크 + 상호)
@@ -44,14 +47,14 @@ export function renderCardCanvas(canvas, r) {
     }
     y = 200;
     ctx.textBaseline = 'alphabetic';
-    ctx.font = `600 34px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#7a6f86'; ctx.fillText('나의 퍼스널컬러', P, y); }
-    y += 90; ctx.font = `800 84px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#2a2433'; ctx.fillText(S.name, P, y); }
+    ctx.font = `600 34px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#5f6680'; ctx.fillText('나의 퍼스널컬러', P, y); }
+    y += 90; ctx.font = `800 84px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#1f2a44'; ctx.fillText(S.name, P, y); }
     y += 58; ctx.font = `500 34px ${FONT}`;
-    if (!measureOnly) { ctx.fillStyle = '#7a6f86'; ctx.fillText(`${S.short} · ${S.keywords.join(' · ')}`, P, y); }
+    if (!measureOnly) { ctx.fillStyle = '#5f6680'; ctx.fillText(`${S.short} · ${S.keywords.join(' · ')}`, P, y); }
     y += 36; ctx.font = `400 34px ${FONT}`;
-    for (const ln of wrap(ctx, S.desc, W - 2 * P)) { y += 50; if (!measureOnly) { ctx.fillStyle = '#3d3547'; ctx.fillText(ln, P, y); } }
+    for (const ln of wrap(ctx, S.desc, W - 2 * P)) { y += 50; if (!measureOnly) { ctx.fillStyle = '#333c58'; ctx.fillText(ln, P, y); } }
     // 베스트 컬러 12
-    y += 80; ctx.font = `700 40px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#2a2433'; ctx.fillText('베스트 컬러', P, y); }
+    y += 80; ctx.font = `700 40px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#1f2a44'; ctx.fillText('베스트 컬러', P, y); }
     y += 30; const cols = 4, gap = 20, sw = (W - 2 * P - gap * (cols - 1)) / cols, sh = 150;
     S.best.forEach((c, i) => {
       const x = P + (i % cols) * (sw + gap), yy = y + Math.floor(i / cols) * (sh + gap);
@@ -59,62 +62,62 @@ export function renderCardCanvas(canvas, r) {
         ctx.fillStyle = textColor(c.hex); ctx.font = `600 26px ${FONT}`; ctx.fillText(c.name, x + 16, yy + sh - 46); ctx.font = `400 22px ${FONT}`; ctx.fillText(c.hex.toUpperCase(), x + 16, yy + sh - 16); }
     });
     y += 3 * (sh + gap) + 50;
-    ctx.font = `700 40px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#2a2433'; ctx.fillText('피하면 좋은 컬러', P, y); }
+    ctx.font = `700 40px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#1f2a44'; ctx.fillText('피하면 좋은 컬러', P, y); }
     y += 30; const aw = (W - 2 * P - 5 * 16) / 6, ah = 96;
     S.avoid.forEach((c, i) => { const x = P + i * (aw + 16); if (!measureOnly) { ctx.fillStyle = c.hex; rr(ctx, x, y, aw, ah, 14); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.08)'; ctx.stroke();
-      ctx.fillStyle = '#5b5266'; ctx.font = `500 21px ${FONT}`; ctx.textAlign = 'center';
+      ctx.fillStyle = '#4f5670'; ctx.font = `500 21px ${FONT}`; ctx.textAlign = 'center';
       wrap(ctx, c.name, aw).slice(0, 2).forEach((ln, k) => ctx.fillText(ln, x + aw / 2, y + ah + 32 + k * 26)); ctx.textAlign = 'left'; } });
     y += ah + 76;
     for (const [t, v] of [['메이크업', S.makeup], ['헤어', S.hair], ['액세서리', S.acc]]) {
-      y += 70; ctx.font = `700 34px ${FONT}`; if (!measureOnly) { ctx.fillStyle = accent; rr(ctx, P, y - 30, 10, 36, 4); ctx.fill(); ctx.fillStyle = '#2a2433'; ctx.fillText(t, P + 26, y); }
+      y += 70; ctx.font = `700 34px ${FONT}`; if (!measureOnly) { ctx.fillStyle = accent; rr(ctx, P, y - 30, 10, 36, 4); ctx.fill(); ctx.fillStyle = '#1f2a44'; ctx.fillText(t, P + 26, y); }
       ctx.font = `400 31px ${FONT}`;
-      for (const ln of wrap(ctx, v, W - 2 * P - 26)) { y += 46; if (!measureOnly) { ctx.fillStyle = '#3d3547'; ctx.fillText(ln, P + 26, y); } }
+      for (const ln of wrap(ctx, v, W - 2 * P - 26)) { y += 46; if (!measureOnly) { ctx.fillStyle = '#333c58'; ctx.fillText(ln, P + 26, y); } }
     }
     // v1.6: 코디 색 조합 · 자주 언급되는 예시
     if (r.outfits?.length) {
-      y += 96; ctx.font = `700 40px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#2a2433'; ctx.fillText('코디 색 조합', P, y); }
+      y += 96; ctx.font = `700 40px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#1f2a44'; ctx.fillText('코디 색 조합', P, y); }
       y += 24; const ow = (W - 2 * P - 2 * 24) / 3;
       r.outfits.forEach((x, i) => { if (measureOnly) return; drawOutfit(ctx, x, P + i * (ow + 24), y, ow, 1); });
       y += 340;
     }
     if (r.celebs?.length) {
-      y += 40; ctx.font = `600 30px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#2a2433'; ctx.fillText(`같은 타입으로 자주 언급되는 예시(참고): ${r.celebs.join(', ')}`, P, y); }
-      y += 36; ctx.font = `400 24px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#8a8094'; ctx.fillText('공식 진단이 아니며 출처마다 다르게 분류되기도 해요.', P, y); }
+      y += 40; ctx.font = `600 30px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#1f2a44'; ctx.fillText(`같은 타입으로 자주 언급되는 예시(참고): ${r.celebs.join(', ')}`, P, y); }
+      y += 36; ctx.font = `400 24px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#6a7089'; ctx.fillText('공식 진단이 아니며 출처마다 다르게 분류되기도 해요.', P, y); }
       y += 30;
     }
     // ---------- 립 · 안경 · 눈썹 추천 ----------
     const F = r.faceId ? FACE_SHAPES[r.faceId] : null, L = LIPS[r.id], G = FRAMES[r.id];
-    const head = (t) => { y += 96; ctx.font = `700 40px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#2a2433'; ctx.fillText(t, P, y); } };
-    const para = (t, size = 30, color = '#3d3547', indent = 0) => { ctx.font = `400 ${size}px ${FONT}`; for (const ln of wrap(ctx, t, W - 2 * P - indent)) { y += size + 14; if (!measureOnly) { ctx.fillStyle = color; ctx.fillText(ln, P + indent, y); } } };
+    const head = (t) => { y += 96; ctx.font = `700 40px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#1f2a44'; ctx.fillText(t, P, y); } };
+    const para = (t, size = 30, color = '#333c58', indent = 0) => { ctx.font = `400 ${size}px ${FONT}`; for (const ln of wrap(ctx, t, W - 2 * P - indent)) { y += size + 14; if (!measureOnly) { ctx.fillStyle = color; ctx.fillText(ln, P + indent, y); } } };
     const chips = (list, d = 120) => { // 동그란 색 + 이름
       y += 26; const gap = (W - 2 * P - list.length * d) / Math.max(1, list.length - 1), step = Math.min(d + gap, d + 120);
       list.forEach((c, i) => { const x = P + i * step; if (!measureOnly) { ctx.fillStyle = c.hex; ctx.beginPath(); ctx.arc(x + d / 2, y + d / 2, d / 2, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = 2; ctx.stroke();
-        ctx.fillStyle = '#3d3547'; ctx.font = `600 25px ${FONT}`; ctx.textAlign = 'center'; wrap(ctx, c.name, step - 8).slice(0, 2).forEach((ln, k) => ctx.fillText(ln, x + d / 2, y + d + 36 + k * 30)); ctx.textAlign = 'left'; } });
+        ctx.fillStyle = '#333c58'; ctx.font = `600 25px ${FONT}`; ctx.textAlign = 'center'; wrap(ctx, c.name, step - 8).slice(0, 2).forEach((ln, k) => ctx.fillText(ln, x + d / 2, y + d + 36 + k * 30)); ctx.textAlign = 'left'; } });
       y += d + 70;
     };
     y += 10; ctx.font = `600 30px ${FONT}`;
-    if (!measureOnly) { ctx.fillStyle = '#5b3f8f'; ctx.fillText(`얼굴형: ${F ? F.name : '선택 안 함'}${F ? (r.face && r.face.id === r.faceId ? ' (자동 추정)' : ' (직접 선택)') : ''}`, P, y + 40); }
+    if (!measureOnly) { ctx.fillStyle = '#1f2a44'; ctx.fillText(`얼굴형: ${F ? F.name : '선택 안 함'}${F ? (r.face && r.face.id === r.faceId ? ' (자동 추정)' : ' (직접 선택)') : ''}`, P, y + 40); }
     y += 40;
-    head('립 컬러 추천'); chips(L.best); para(`피하면 좋은 립: ${L.avoid.map((c) => c.name).join(', ')}  ·  ${L.tip}`, 28, '#5b5266');
-    head('안경테 컬러'); chips(G.best); para(`${G.tip} 피하면 좋은 테: ${G.avoid}`, 28, '#5b5266');
+    head('립 컬러 추천'); chips(L.best); para(`피하면 좋은 립: ${L.avoid.map((c) => c.name).join(', ')}  ·  ${L.tip}`, 28, '#4f5670');
+    head('안경테 컬러'); chips(G.best); para(`${G.tip} 피하면 좋은 테: ${G.avoid}`, 28, '#4f5670');
     if (F) {
       head(`안경테 모양 · ${F.name}`);
       y += 24; const bw = (W - 2 * P) / 3;
       F.glasses.forEach((g, i) => { if (measureOnly) return; const gp = glassesPaths(g), x = P + i * bw + (bw - 288) / 2, k = 3;
-        ctx.save(); ctx.translate(x, y + 6); ctx.scale(k, k); ctx.strokeStyle = '#2a2433'; ctx.lineWidth = 3; ctx.lineJoin = 'round'; if (gp.dashed) ctx.setLineDash([4, 3]);
+        ctx.save(); ctx.translate(x, y + 6); ctx.scale(k, k); ctx.strokeStyle = '#1f2a44'; ctx.lineWidth = 3; ctx.lineJoin = 'round'; if (gp.dashed) ctx.setLineDash([4, 3]);
         ctx.stroke(new Path2D(gp.left)); ctx.save(); ctx.translate(gp.offsetR, 0); ctx.stroke(new Path2D(gp.left)); ctx.restore(); ctx.stroke(new Path2D(gp.bridge));
         if (gp.thickTop) { ctx.lineWidth = 6; ctx.stroke(new Path2D('M2 4 H42 M54 4 H94')); } ctx.restore();
-        ctx.fillStyle = '#2a2433'; ctx.font = `700 28px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(GLASS_SHAPES[g], P + i * bw + bw / 2, y + 140); ctx.textAlign = 'left'; });
-      y += 150; para(F.glassesTip, 28, '#5b5266');
+        ctx.fillStyle = '#1f2a44'; ctx.font = `700 28px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(GLASS_SHAPES[g], P + i * bw + bw / 2, y + 140); ctx.textAlign = 'left'; });
+      y += 150; para(F.glassesTip, 28, '#4f5670');
       head(`눈썹 모양 · ${F.browName}`);
       y += 20; if (!measureOnly) { ctx.save(); ctx.translate(P, y); ctx.scale(2.4, 2.4); ctx.strokeStyle = S.tone === '웜' ? '#6b4a32' : '#4d4646'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke(new Path2D(BROW_PATHS[F.brow])); ctx.restore(); }
       const by = y; y += 10; ctx.font = `400 28px ${FONT}`;
-      for (const ln of wrap(ctx, F.browTip, W - 2 * P - 320)) { y += 42; if (!measureOnly) { ctx.fillStyle = '#3d3547'; ctx.fillText(ln, P + 320, y); } }
+      for (const ln of wrap(ctx, F.browTip, W - 2 * P - 320)) { y += 42; if (!measureOnly) { ctx.fillStyle = '#333c58'; ctx.fillText(ln, P + 320, y); } }
       y = Math.max(y, by + 100);
-    } else { head('안경테 모양 · 눈썹 모양'); para('얼굴형을 선택하면 맞춤 추천을 함께 저장해요.', 28, '#5b5266'); }
+    } else { head('안경테 모양 · 눈썹 모양'); para('얼굴형을 선택하면 맞춤 추천을 함께 저장해요.', 28, '#4f5670'); }
     // ---------- v1.5 헤어 ----------
     const HC = HAIR_COLORS[r.id], g = r.hairGender === 'm' ? 'm' : 'f';
-    head('헤어 컬러'); chips(HC.best); para(`${HC.tip} 피하면 좋은 색: ${HC.avoid.map((c) => c.name).join(', ')}`, 28, '#5b5266');
+    head('헤어 컬러'); chips(HC.best); para(`${HC.tip} 피하면 좋은 색: ${HC.avoid.map((c) => c.name).join(', ')}`, 28, '#4f5670');
     if (F) {
       const H = HAIR_REC[r.faceId][g]; head(`헤어스타일 · ${F.name} · ${HAIR_GENDERS[g]}`);
       y += 20; const bw = (W - 2 * P) / 3, k = 2.2;
@@ -124,10 +127,10 @@ export function renderCardCanvas(canvas, r) {
         ctx.fillStyle = HC.best[1].hex; ctx.fill(new Path2D(hs.back));
         ctx.fillStyle = '#f3dccb'; ctx.beginPath(); ctx.ellipse(50, 58, 22, 28, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#d8bba6'; ctx.lineWidth = 1; ctx.stroke();
         ctx.fillStyle = HC.best[1].hex; ctx.fill(new Path2D(hs.front)); ctx.restore();
-        ctx.textAlign = 'center'; ctx.fillStyle = '#2a2433'; ctx.font = `700 28px ${FONT}`; ctx.fillText(hs.name, P + i * bw + bw / 2, y + 110 * k + 40);
-        ctx.fillStyle = '#5b3f8f'; ctx.font = `600 24px ${FONT}`; ctx.fillText(hs.len, P + i * bw + bw / 2, y + 110 * k + 74); ctx.textAlign = 'left'; });
-      y += 110 * k + 90; para(`${H.tip} 피하면 좋은 스타일: ${H.avoid}`, 28, '#5b5266');
-    } else { head('헤어스타일'); para('얼굴형을 선택하면 맞춤 헤어스타일 추천을 함께 저장해요.', 28, '#5b5266'); }
+        ctx.textAlign = 'center'; ctx.fillStyle = '#1f2a44'; ctx.font = `700 28px ${FONT}`; ctx.fillText(hs.name, P + i * bw + bw / 2, y + 110 * k + 40);
+        ctx.fillStyle = '#1f2a44'; ctx.font = `600 24px ${FONT}`; ctx.fillText(hs.len, P + i * bw + bw / 2, y + 110 * k + 74); ctx.textAlign = 'left'; });
+      y += 110 * k + 90; para(`${H.tip} 피하면 좋은 스타일: ${H.avoid}`, 28, '#4f5670');
+    } else { head('헤어스타일'); para('얼굴형을 선택하면 맞춤 헤어스타일 추천을 함께 저장해요.', 28, '#4f5670'); }
     y += 70; ctx.font = `500 26px ${FONT}`;
     // v1.6: 결과 보기 QR(오른쪽) + 주소. QR에는 타입 코드만 담긴 주소(#r=…)가 들어감
     // v1.8: 상호(운영 주체) + H.O.W 마크
@@ -135,7 +138,7 @@ export function renderCardCanvas(canvas, r) {
     const foot = [`두 번째 후보: ${r.second.name} · 신뢰도 ${r.conf.label} · ${r.method}`, ...wrap(ctx, `${r.date} · 카메라·조명에 따라 달라질 수 있는 추정이며, 추천은 스타일링 제안이에요.`, tw)];
     if (r.url) foot.push('📱 QR을 찍으면 내 결과를 받을 수 있어요.', shortUrl(r.appUrl || r.url));
     foot.push(COPY(r));
-    for (const ln of foot) { if (!measureOnly) { ctx.fillStyle = '#8a8094'; ctx.fillText(ln, P, y); } y += 40; }
+    for (const ln of foot) { if (!measureOnly) { ctx.fillStyle = '#6a7089'; ctx.fillText(ln, P, y); } y += 40; }
     if (qs && !measureOnly) drawQr(ctx, r.url, W - P - qs, y0, qs, 2);
     return Math.max(y, y0 + qs + 20) + 40;
   };
@@ -150,7 +153,7 @@ const shortUrl = (u) => String(u || '').replace(/^https?:\/\//, '').replace(/#.*
 // 코디 블록: 상의(위)·하의(아래) 실루엣 색 + 포인트 원 + 글자
 function drawOutfit(ctx, o, x, y, w, scale = 1) {
   const k = scale;
-  ctx.fillStyle = '#f6f1ec'; rr(ctx, x, y, w, 300 * k, 18 * k); ctx.fill();
+  ctx.fillStyle = '#f7f1ea'; rr(ctx, x, y, w, 300 * k, 18 * k); ctx.fill();
   const cx = x + w / 2;
   // 상의 (티셔츠 실루엣)
   ctx.fillStyle = o.top.hex; ctx.beginPath();
@@ -164,8 +167,8 @@ function drawOutfit(ctx, o, x, y, w, scale = 1) {
   ctx.lineTo(cx, y + 186 * k); ctx.lineTo(cx - 12 * k, y + 232 * k); ctx.lineTo(cx - 64 * k, y + 232 * k); ctx.closePath(); ctx.fill(); ctx.stroke();
   // 포인트 (가방·액세서리 원)
   ctx.fillStyle = o.point.hex; ctx.beginPath(); ctx.arc(cx + 92 * k, y + 176 * k, 20 * k, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.textAlign = 'center'; ctx.fillStyle = '#2a2433'; ctx.font = `700 ${Math.round(26 * k)}px ${FONT}`; ctx.fillText(o.title, cx, y + 266 * k);
-  ctx.fillStyle = '#6f6680'; ctx.font = `500 ${Math.round(19 * k)}px ${FONT}`;
+  ctx.textAlign = 'center'; ctx.fillStyle = '#1f2a44'; ctx.font = `700 ${Math.round(26 * k)}px ${FONT}`; ctx.fillText(o.title, cx, y + 266 * k);
+  ctx.fillStyle = '#5b6178'; ctx.font = `500 ${Math.round(19 * k)}px ${FONT}`;
   ctx.fillText(`${o.top.name} · ${o.bottom.name} · ${o.point.name}`.slice(0, 26), cx, y + 292 * k); ctx.textAlign = 'left';
 }
 
@@ -174,15 +177,16 @@ export function renderStoryCanvas(canvas, r) {
   const S = r.season, W = 1080, H = 1920, P = 80;
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#fbf8f4'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#fbf7f2'; ctx.fillRect(0, 0, W, H);
+  bloom(ctx, W, H);
   const g = ctx.createLinearGradient(0, 0, W, 0); S.best.slice(0, 6).forEach((c, i) => g.addColorStop(i / 5, c.hex));
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, 40); ctx.fillRect(0, H - 24, W, 24);
   ctx.textBaseline = 'alphabetic';
   brandTop(ctx, r.brand, P, 70, 52, 62, W - 2 * P);
   let y = 240;
-  ctx.font = `600 38px ${FONT}`; ctx.fillStyle = '#7a6f86'; ctx.fillText('나의 퍼스널컬러', P, y);
-  y += 110; ctx.font = `800 104px ${FONT}`; ctx.fillStyle = '#2a2433'; ctx.fillText(S.name, P, y);
-  y += 70; ctx.font = `500 38px ${FONT}`; ctx.fillStyle = '#7a6f86'; ctx.fillText(`${S.short} · ${S.keywords.join(' · ')}`, P, y);
+  ctx.font = `600 38px ${FONT}`; ctx.fillStyle = '#5f6680'; ctx.fillText('나의 퍼스널컬러', P, y);
+  y += 110; ctx.font = `800 104px ${FONT}`; ctx.fillStyle = '#1f2a44'; ctx.fillText(S.name, P, y);
+  y += 70; ctx.font = `500 38px ${FONT}`; ctx.fillStyle = '#5f6680'; ctx.fillText(`${S.short} · ${S.keywords.join(' · ')}`, P, y);
   // 베스트 12색 (4×3)
   y += 60; const cols = 4, gap = 18, sw = (W - 2 * P - gap * (cols - 1)) / cols, sh = 130;
   S.best.forEach((c, i) => {
@@ -193,27 +197,27 @@ export function renderStoryCanvas(canvas, r) {
   y += 3 * (sh + gap) + 40;
   // 립 4색
   const L = LIPS[r.id];
-  ctx.font = `700 36px ${FONT}`; ctx.fillStyle = '#2a2433'; ctx.fillText('추천 립', P, y + 40);
+  ctx.font = `700 36px ${FONT}`; ctx.fillStyle = '#1f2a44'; ctx.fillText('추천 립', P, y + 40);
   L.best.forEach((c, i) => { const x = P + 210 + i * 190; ctx.fillStyle = c.hex; ctx.beginPath(); ctx.arc(x + 40, y + 28, 40, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#3d3547'; ctx.font = `500 22px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(c.name, x + 40, y + 100); ctx.textAlign = 'left'; });
+    ctx.fillStyle = '#333c58'; ctx.font = `500 22px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(c.name, x + 40, y + 100); ctx.textAlign = 'left'; });
   y += 175;
   // 코디 3개
   if (r.outfits?.length) {
-    ctx.font = `700 36px ${FONT}`; ctx.fillStyle = '#2a2433'; ctx.fillText('코디 색 조합', P, y); y += 24;
+    ctx.font = `700 36px ${FONT}`; ctx.fillStyle = '#1f2a44'; ctx.fillText('코디 색 조합', P, y); y += 24;
     const ow = (W - 2 * P - 2 * 20) / 3; r.outfits.forEach((o, i) => drawOutfit(ctx, o, P + i * (ow + 20), y, ow, 0.9)); y += 300 * 0.9 + 30;
   }
   // 피할 색
-  ctx.font = `700 32px ${FONT}`; ctx.fillStyle = '#2a2433'; ctx.fillText('피하면 좋은 색', P, y + 34);
+  ctx.font = `700 32px ${FONT}`; ctx.fillStyle = '#1f2a44'; ctx.fillText('피하면 좋은 색', P, y + 34);
   S.avoid.forEach((c, i) => { const x = P + 270 + i * 106; ctx.fillStyle = c.hex; rr(ctx, x, y, 86, 50, 12); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.1)'; ctx.stroke(); });
   y += 100;
-  if (r.celebs?.length) { ctx.font = `500 28px ${FONT}`; ctx.fillStyle = '#5b5266'; ctx.fillText(`자주 언급되는 예시(참고): ${r.celebs.join(', ')}`, P, y); y += 40; }
+  if (r.celebs?.length) { ctx.font = `500 28px ${FONT}`; ctx.fillStyle = '#4f5670'; ctx.fillText(`자주 언급되는 예시(참고): ${r.celebs.join(', ')}`, P, y); y += 40; }
   // 아래: QR + 안내
   const qs = 220, qy = H - 100 - qs; // 아래쪽에 저작권 안내 1줄 자리
   if (r.url) drawQr(ctx, r.url, W - P - qs, qy, qs, 2);
-  ctx.font = `600 30px ${FONT}`; ctx.fillStyle = '#2a2433'; ctx.fillText(`신뢰도 ${r.conf.label} · ${r.method}`, P, qy + 50);
-  ctx.font = `400 26px ${FONT}`; ctx.fillStyle = '#8a8094';
+  ctx.font = `600 30px ${FONT}`; ctx.fillStyle = '#1f2a44'; ctx.fillText(`신뢰도 ${r.conf.label} · ${r.method}`, P, qy + 50);
+  ctx.font = `400 26px ${FONT}`; ctx.fillStyle = '#6a7089';
   ctx.fillText(`${r.date} · 카메라·조명에 따라 달라지는 추정이에요.`, P, qy + 100);
   if (r.url) { ctx.fillText('📱 QR로 내 결과 받기', P, qy + 150); ctx.fillText(shortUrl(r.appUrl || r.url), P, qy + 192); }
-  ctx.font = `400 22px ${FONT}`; ctx.fillStyle = '#9a90a4'; ctx.fillText(COPY(r), P, H - 56);
+  ctx.font = `400 22px ${FONT}`; ctx.fillStyle = '#8a90a6'; ctx.fillText(COPY(r), P, H - 56);
   return canvas;
 }

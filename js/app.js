@@ -13,6 +13,7 @@ const LOCKED = SHARED_BOOT, LOCK_SCREENS = new Set(['shared', 'sharedErr', 'shar
 if (LOCKED) document.documentElement.classList.add('locked');
 import { initDecoder, decodeVideo, MAX_SIDE, MAX_SIDE_SYNC } from './qr.js';
 import { initAdmin } from './admin.js';
+import { cosmeticsReady, cosmeticsHtml, cosmeticsFor, cosmeticsLabel } from './cosmetics.js';
 import { faceMetrics, classifyFaceShape, FACE_SHAPES, FACE_ORDER, GLASS_SHAPES, LIPS, FRAMES, glassesSvg, browSvg, HAIR_COLORS, HAIR_STYLES, HAIR_REC, HAIR_GENDERS, hairSvg } from './style.js';
 
 const $ = (id) => document.getElementById(id);
@@ -506,7 +507,7 @@ function buildFinal() {
   renderResult();
 }
 const sw = (c, cls = '') => `<div class="swatch ${cls}"><i style="background:${c.hex}"></i><span>${c.name}</span></div>`;
-const RTABS = [['color', '컬러'], ['lip', '립'], ['glasses', '안경'], ['brow', '눈썹'], ['hair', '헤어']];
+const RTABS = [['color', '컬러'], ['lip', '메이크업'], ['glasses', '안경'], ['brow', '눈썹'], ['hair', '헤어']];
 function faceId() { return S.faceShape || S.final?.face?.id || null; }
 function needFace() { return `<p class="warn pick">얼굴형을 위에서 선택하면 맞춤 추천이 나와요.</p>`; }
 function resultPane(tab) {
@@ -514,7 +515,8 @@ function resultPane(tab) {
   if (tab === 'lip') {
     const L = LIPS[r.id];
     return `<h2 class="sec">💄 추천 립 컬러</h2><div class="palette lips">${L.best.map((c) => sw(c, 'lip')).join('')}</div>
-      <p class="tip">${L.tip}</p><h2 class="sec">피하면 좋은 립 컬러</h2><div class="palette lips avoid">${L.avoid.map((c) => sw(c, 'lip sm')).join('')}</div>`;
+      <p class="tip">${L.tip}</p><h2 class="sec">피하면 좋은 립 컬러</h2><div class="palette lips avoid">${L.avoid.map((c) => sw(c, 'lip sm')).join('')}</div>
+      ${cosmeticsHtml(r.id, S.screen === 'shared')}`;
   }
   if (tab === 'glasses') {
     const G = FRAMES[r.id];
@@ -553,6 +555,7 @@ function faceDebug() {
   return `<p class="dbg" id="faceDbg">측정값 · 길이/광대 ${m.ratio.toFixed(3)} (z ${sg(z.ratio ?? 0)}) · 이마/광대 ${m.fore.toFixed(3)} (z ${sg(z.fore ?? 0)}) · 턱/광대 ${m.jaw.toFixed(3)} (z ${sg(z.jaw ?? 0)}) · 턱끝 ${m.chin.toFixed(1)}° (z ${sg(z.chin ?? 0)}) · 좌우 돌림 ${m.yaw.toFixed(2)} · 숙임 ${Number.isFinite(m.pitch) ? m.pitch.toFixed(0) + '°' : '-'}<br>후보 ${f.probs.slice(0, 3).map((x) => `${FACE_SHAPES[x.id].name} ${Math.round(x.p * 100)}%`).join(' / ')}</p>`;
 }
 function renderResult() {
+  cosmeticsReady().then((d) => { if (d && S.final && S.resTab === 'lip' && !document.querySelector('#rpane .pchips')) { const p = $('rpane'); if (p) p.innerHTML = resultPane('lip'); } });
   const r = S.final, s = r.season, fid = faceId(), auto = r.face, box = S.screen === 'shared' ? $('sharedCard') : $('resultCard');
   const opts = (fid ? '' : '<option value="" selected>선택해 주세요</option>') + FACE_ORDER.map((id) => `<option value="${id}" ${id === fid ? 'selected' : ''}>${FACE_SHAPES[id].name}</option>`).join('');
   const fnote = S.faceShape && auto && S.faceShape !== auto.id ? `직접 선택 (자동 추정: ${FACE_SHAPES[auto.id].name})`
@@ -589,11 +592,11 @@ $('btnSavePng').onclick = () => saveCard('full');
 $('btnSaveStory').onclick = () => saveCard('story');
 // v1.6: 'full' = 긴 결과 카드, 'story' = 인스타 스토리 크기(1080×1920). 둘 다 결과 보기 QR·주소 포함 (얼굴 사진 없음)
 // v1.7: 결과 이미지를 미리 만들어 둠 → 버튼을 누르는 즉시 공유 시트를 엶 (iPhone은 누른 뒤 시간이 걸리면 공유를 막음)
-const cardKey = () => (S.final ? [S.final.id, S.final.second?.id, S.final.conf.level, S.final.method, S.final.date, faceId(), S.hairGender, S.final.exp, bizName()].join('|') : '');
+const cardKey = () => (S.final ? [S.final.id, S.final.second?.id, S.final.conf.level, S.final.method, S.final.date, faceId(), S.hairGender, S.final.exp, bizName(), cosmeticsLabel()].join('|') : '');
 let cardCache = { key: '', files: {} }, prepTimer = null;
 async function makeCardFile(kind) {
-  await logoReady();
-  const data = { ...S.final, faceId: faceId(), hairGender: S.hairGender, url: resultUrl(), appUrl: location.origin + location.pathname, legal: LEGAL_NOTICE, brand: bizName(), outfits: OUTFITS[S.final.id], celebs: CELEBS[S.final.id] };
+  await Promise.all([logoReady(), cosmeticsReady()]);
+  const data = { ...S.final, faceId: faceId(), hairGender: S.hairGender, url: resultUrl(), appUrl: location.origin + location.pathname, legal: LEGAL_NOTICE, brand: bizName(), products: cosmeticsFor(S.final.id), productsLabel: cosmeticsLabel(), outfits: OUTFITS[S.final.id], celebs: CELEBS[S.final.id] };
   const cv = document.createElement('canvas'); (kind === 'story' ? renderStoryCanvas : renderCardCanvas)(cv, data);
   const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
   cv.width = cv.height = 1;

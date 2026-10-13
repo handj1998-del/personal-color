@@ -99,6 +99,16 @@ export function renderCardCanvas(canvas, r) {
     if (!measureOnly) { ctx.fillStyle = '#1f2a44'; ctx.fillText(`얼굴형: ${F ? F.name : '선택 안 함'}${F ? (r.face && r.face.id === r.faceId ? ' (자동 추정)' : ' (직접 선택)') : ''}`, P, y + 40); }
     y += 40;
     head('립 컬러 추천'); chips(L.best); para(`피하면 좋은 립: ${L.avoid.map((c) => c.name).join(', ')}  ·  ${L.tip}`, 28, '#4f5670');
+    // v2.2: 올리브영 제품 예시 (2열, 작은 색 점 + 브랜드·호수)
+    if (r.products?.length) {
+      head('올리브영 제품 예시'); y += 14; const cw = (W - 2 * P - 24) / 2;
+      r.products.forEach((c, i) => { const x = P + (i % 2) * (cw + 24), yy = y + Math.floor(i / 2) * 76;
+        if (!measureOnly) { ctx.fillStyle = c.hex; ctx.beginPath(); ctx.arc(x + 26, yy + 30, 24, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = 2; ctx.stroke();
+          ctx.fillStyle = '#5b6178'; ctx.font = `500 22px ${FONT}`; ctx.fillText(`${c.catName} · ${c.brand} ${c.product}`, x + 66, yy + 20);
+          ctx.fillStyle = '#1f2a44'; ctx.font = `700 27px ${FONT}`; ctx.fillText(c.shade, x + 66, yy + 52); } });
+      y += Math.ceil(r.products.length / 2) * 76;
+      para(`${r.productsLabel} · 판매 종료·가격 변동 가능, 색 견본은 근사값이에요.`, 24, '#5b6178');
+    }
     head('안경테 컬러'); chips(G.best); para(`${G.tip} 피하면 좋은 테: ${G.avoid}`, 28, '#4f5670');
     if (F) {
       head(`안경테 모양 · ${F.name}`);
@@ -200,7 +210,10 @@ export function renderStoryCanvas(canvas, r) {
   ctx.font = `700 36px ${FONT}`; ctx.fillStyle = '#1f2a44'; ctx.fillText('추천 립', P, y + 40);
   L.best.forEach((c, i) => { const x = P + 210 + i * 190; ctx.fillStyle = c.hex; ctx.beginPath(); ctx.arc(x + 40, y + 28, 40, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#333c58'; ctx.font = `500 22px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(c.name, x + 40, y + 100); ctx.textAlign = 'left'; });
-  y += 175;
+  y += 150;
+  if (r.products?.length) { const lips = r.products.filter((c) => c.cat === 'lip').slice(0, 3); ctx.font = `500 24px ${FONT}`; ctx.fillStyle = '#4f5670';
+    ctx.fillText(`올리브영 예시: ${lips.map((c) => `${c.brand} ${c.shade}`).join(' · ')}`, P, y); y += 24; }
+  y += 25;
   // 코디 3개
   if (r.outfits?.length) {
     ctx.font = `700 36px ${FONT}`; ctx.fillStyle = '#1f2a44'; ctx.fillText('코디 색 조합', P, y); y += 24;

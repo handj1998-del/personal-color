@@ -1,0 +1,304 @@
+{
+ "version": 1,
+ "verifiedAt": "2026-10-13",
+ "label": "제품 정보 2026.10.13 기준",
+ "notice": "2026.10 기준, 판매 종료·가격 변동 가능. 색상은 화면에 따라 다르게 보일 수 있어요. 타입 추천은 매장 기준이며 브랜드의 공식 분류가 아니에요.",
+ "hexNote": "hex는 근사 스와치(공식 색 설명·호수 이름 기준)이며 실제 제품 색과 다를 수 있어요.",
+ "products": {
+  "jlt": {
+   "brand": "롬앤",
+   "product": "더 쥬시 래스팅 틴트",
+   "cat": "lip",
+   "goodsNo": "A000000241210",
+   "shadeSource": "https://romand.co.kr/product/%EB%A1%AC%EC%95%A4-%EB%8D%94-%EC%A5%AC%EC%8B%9C-%EB%9E%98%EC%8A%A4%ED%8C%85-%ED%8B%B4%ED%8A%B8/958/",
+   "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000241210"
+  },
+  "btc": {
+   "brand": "롬앤",
+   "product": "베러 댄 치크",
+   "cat": "blush",
+   "goodsNo": "A000000172610",
+   "shadeSource": "https://www.kurly.com/goods/1000570414 (롬앤 공식 판매 목록·색 설명) · romand.co.kr 옵션 목록",
+   "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000172610"
+  },
+  "btp": {
+   "brand": "롬앤",
+   "product": "베러 댄 팔레트",
+   "cat": "eye",
+   "goodsNo": "A000000148390",
+   "shadeSource": "https://www.kurly.com/goods/1000086315 (번호·색 설명) · romand.co.kr 옵션 목록",
+   "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000148390"
+  },
+  "mgt": {
+   "brand": "페리페라",
+   "product": "무드 글로이 틴트",
+   "cat": "lip",
+   "goodsNo": "A000000244834",
+   "shadeSource": "http://www.enewstoday.co.kr/news/articleView.html?idxno=2388536 · 블로그 호수 목록",
+   "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000244834"
+  }
+ },
+ "types": {
+  "spring_light": [
+   {
+    "p": "jlt",
+    "shade": "23 피치 피치 미",
+    "hex": "#f0927c",
+    "hexApprox": true,
+    "verify": "ok"
+   },
+   {
+    "p": "jlt",
+    "shade": "10 베어 애프리콧",
+    "hex": "#e99a80",
+    "hexApprox": true,
+    "verify": "shade-name-only"
+   },
+   {
+    "p": "btc",
+    "shade": "W03 애프리콧 밀크",
+    "hex": "#f5b9a0",
+    "hexApprox": true,
+    "verify": "ok"
+   },
+   {
+    "p": "btp",
+    "shade": "08 피치 달리아 가든",
+    "hex": "#e8ab8f",
+    "hexApprox": true,
+    "verify": "ok"
+   }
+  ],
+  "spring_bright": [
+   {
+    "p": "jlt",
+    "shade": "24 베어 쥬시 오",
+    "hex": "#f27a52",
+    "hexApprox": true,
+    "verify": "ok"
+   },
+   {
+    "p": "jlt",
+    "shade": "01 포멜로 스킨",
+    "hex": "#ee8c6c",
+    "hexApprox": true,
+    "verify": "ok"
+   },
+   {
+    "p": "btc",
+    "shade": "C01 피치 칩",
+    "hex": "#f4a78c",
+    "hexApprox": true,
+    "verify": "ok"
+   },
+   {
+    "p": "btp",
+    "shade": "01 팜파스 가든",
+    "hex": "#cf8a6c",
+    "hexApprox": true,
+    "verify": "ok"
+   }
+  ],
+  "summer_light": [
+   {
+    "p": "jlt",
+    "shade": "03 베어 그레이프",
+    "hex": "#c97c8e",
+    "hexApprox": true,
+    "verify": "ok"
+   },
+   {
+    "p": "jlt",
+    "shade": "08 핑크 펌킨",
+    "hex": "#de8c88",
+    "hexApprox": true,
+    "verify": "shade-name-only"
+   },
+   {
+    "p": "btc",
+    "shade": "W02 스트로베리 밀크",
+    "hex": "#f3b8c2",
+    "hexApprox": true,
+    "verify": "ok"
+   },
+   {
+    "p": "btp",
+    "shade": "06 피오니 누드 가든",
+    "hex": "#c9a2aa",
+    "hexApprox": true,
+    "verify": "ok"
+   }
+  ],
+  "summer_mute": [
+   {
+    "p": "jlt",
+    "shade": "14 아몬드 로즈",
+    "hex": "#b97c78",
+    "hexApprox": true,
+    "verify": "shade-name-only"
+   },
+   {
+    "p": "jlt",
+    "shade": "15 베어 피그",
+    "hex": "#b67886",
+    "hexApprox": true,
+    "verify": "shade-name-only"
+   },
+   {
+    "p": "mgt",
+    "shade": "09 맘찍로즈",
+    "hex": "#c47a86",
+    "hexApprox": true,
+    "verify": "partial"
+   },
+   {
+    "p": "btc",
+    "shade": "C02 블루베리 칩",
+    "hex": "#d79caa",
+    "hexApprox": true,
+    "verify": "ok"
+   },
+   {
+    "p": "btp",
+    "shade": "02 마호가니 가든",
+    "hex": "#a8857a",
+    "hexApprox": true,
+    "verify": "ok"
+   }
+  ],
+  "autumn_mute": [
+   {
+    "p": "jlt",
+    "shade": "02 누카다미아",
+    "hex": "#b56c5c",
+    "hexApprox": true,
+    "verify": "ok"
+   },
+   {
+    "p": "jlt",
+    "shade": "05 쥬쥬브",
+    "hex": "#a65c52",
+    "hexApprox": true,
+    "verify": "ok"
+   },
+   {
+    "p": "mgt",
+    "shade": "18 손웜수템",
+    "hex": "#c27a66",
+    "hexApprox": true,
+    "verify": "partial"
+   },
+   {
+    "p": "btc",
+    "shade": "N01 너티 누드",
+    "hex": "#c99c88",
+    "hexApprox": true,
+    "verify": "ok"
+   },
+   {
+    "p": "btp",
+    "shade": "02 마호가니 가든",
+    "hex": "#a8857a",
+    "hexApprox": true,
+    "verify": "ok"
+   }
+  ],
+  "autumn_deep": [
+   {
+    "p": "jlt",
+    "shade": "12 애플 브라운",
+    "hex": "#8e4036",
+    "hexApprox": true,
+    "verify": "shade-name-only"
+   },
+   {
+    "p": "jlt",
+    "shade": "17 다크 코코넛",
+    "hex": "#6e3c32",
+    "hexApprox": true,
+    "verify": "shade-name-only"
+   },
+   {
+    "p": "btc",
+    "shade": "C03 피그 칩",
+    "hex": "#b86c5e",
+    "hexApprox": true,
+    "verify": "ok"
+   },
+   {
+    "p": "btp",
+    "shade": "05 쉐이드 앤 섀도우 가든",
+    "hex": "#9a7460",
+    "hexApprox": true,
+    "verify": "shade-name-only"
+   }
+  ],
+  "winter_bright": [
+   {
+    "p": "jlt",
+    "shade": "07 체리 밤",
+    "hex": "#b8283e",
+    "hexApprox": true,
+    "verify": "shade-name-only"
+   },
+   {
+    "p": "jlt",
+    "shade": "04 피그 피그",
+    "hex": "#a83c5e",
+    "hexApprox": true,
+    "verify": "ok"
+   },
+   {
+    "p": "mgt",
+    "shade": "19 어쩔체리",
+    "hex": "#c22a46",
+    "hexApprox": true,
+    "verify": "partial"
+   },
+   {
+    "p": "btc",
+    "shade": "C02 블루베리 칩",
+    "hex": "#d79caa",
+    "hexApprox": true,
+    "verify": "ok"
+   },
+   {
+    "p": "btp",
+    "shade": "03 로즈버드 가든",
+    "hex": "#c47a80",
+    "hexApprox": true,
+    "verify": "shade-name-only"
+   }
+  ],
+  "winter_deep": [
+   {
+    "p": "jlt",
+    "shade": "16 플럼 콕",
+    "hex": "#7a2c40",
+    "hexApprox": true,
+    "verify": "shade-name-only"
+   },
+   {
+    "p": "jlt",
+    "shade": "21 그레이프 밤",
+    "hex": "#7d3c58",
+    "hexApprox": true,
+    "verify": "shade-name-only"
+   },
+   {
+    "p": "btc",
+    "shade": "N02 바인 누드",
+    "hex": "#b896a4",
+    "hexApprox": true,
+    "verify": "ok"
+   },
+   {
+    "p": "btp",
+    "shade": "06 피오니 누드 가든",
+    "hex": "#c9a2aa",
+    "hexApprox": true,
+    "verify": "ok"
+   }
+  ]
+ }
+}

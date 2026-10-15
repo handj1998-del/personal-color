@@ -1,4 +1,5 @@
 // 결과 카드 PNG 렌더러 (색과 글자만, 얼굴 사진 없음)
+import { drawBody } from './body.js';
 import { hexToRgb } from './color.js';
 import { drawQr, drawLogo, brandName, isDefaultBrand } from './qrcard.js';
 import { FACE_SHAPES, GLASS_SHAPES, LIPS, FRAMES, BROW_PATHS, glassesPaths, HAIR_COLORS, HAIR_STYLES, HAIR_REC, HAIR_GENDERS } from './style.js';
@@ -74,11 +75,11 @@ export function renderCardCanvas(canvas, r) {
       for (const ln of wrap(ctx, v, W - 2 * P - 26)) { y += 46; if (!measureOnly) { ctx.fillStyle = '#333c58'; ctx.fillText(ln, P + 26, y); } }
     }
     // v1.6: 코디 색 조합 · 자주 언급되는 예시
-    if (r.outfits?.length) {
-      y += 96; ctx.font = `700 40px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#1f2a44'; ctx.fillText('코디 색 조합', P, y); }
-      y += 24; const ow = (W - 2 * P - 2 * 24) / 3;
-      r.outfits.forEach((x, i) => { if (measureOnly) return; drawOutfit(ctx, x, P + i * (ow + 24), y, ow, 1); });
-      y += 340;
+    if (r.body?.looks?.length) {
+      y += 96; ctx.font = `700 40px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#1f2a44'; ctx.fillText(`체형별 코디 · ${r.body.name}`, P, y); }
+      y += 24; const lw = (W - 2 * P - 24) / 2;
+      if (!measureOnly) r.body.looks.forEach((l, i) => drawLook(ctx, l, P + i * (lw + 24), y, lw, 1));
+      y += 400;
     }
     if (r.celebs?.length) {
       y += 40; ctx.font = `600 30px ${FONT}`; if (!measureOnly) { ctx.fillStyle = '#1f2a44'; ctx.fillText(`같은 타입으로 자주 언급되는 예시(참고): ${r.celebs.join(', ')}`, P, y); }
@@ -160,26 +161,16 @@ export function renderCardCanvas(canvas, r) {
 }
 
 const shortUrl = (u) => String(u || '').replace(/^https?:\/\//, '').replace(/#.*$/, '').replace(/\/$/, '');
-// 코디 블록: 상의(위)·하의(아래) 실루엣 색 + 포인트 원 + 글자
-function drawOutfit(ctx, o, x, y, w, scale = 1) {
-  const k = scale;
-  ctx.fillStyle = '#f7f1ea'; rr(ctx, x, y, w, 300 * k, 18 * k); ctx.fill();
-  const cx = x + w / 2;
-  // 상의 (티셔츠 실루엣)
-  ctx.fillStyle = o.top.hex; ctx.beginPath();
-  ctx.moveTo(cx - 60 * k, y + 28 * k); ctx.lineTo(cx - 100 * k, y + 52 * k); ctx.lineTo(cx - 84 * k, y + 88 * k); ctx.lineTo(cx - 60 * k, y + 78 * k);
-  ctx.lineTo(cx - 60 * k, y + 150 * k); ctx.lineTo(cx + 60 * k, y + 150 * k); ctx.lineTo(cx + 60 * k, y + 78 * k); ctx.lineTo(cx + 84 * k, y + 88 * k);
-  ctx.lineTo(cx + 100 * k, y + 52 * k); ctx.lineTo(cx + 60 * k, y + 28 * k); ctx.quadraticCurveTo(cx, y + 52 * k, cx - 60 * k, y + 28 * k); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = 2; ctx.stroke();
-  // 하의 (바지 실루엣)
-  ctx.fillStyle = o.bottom.hex; ctx.beginPath();
-  ctx.moveTo(cx - 56 * k, y + 156 * k); ctx.lineTo(cx + 56 * k, y + 156 * k); ctx.lineTo(cx + 64 * k, y + 232 * k); ctx.lineTo(cx + 12 * k, y + 232 * k);
-  ctx.lineTo(cx, y + 186 * k); ctx.lineTo(cx - 12 * k, y + 232 * k); ctx.lineTo(cx - 64 * k, y + 232 * k); ctx.closePath(); ctx.fill(); ctx.stroke();
-  // 포인트 (가방·액세서리 원)
-  ctx.fillStyle = o.point.hex; ctx.beginPath(); ctx.arc(cx + 92 * k, y + 176 * k, 20 * k, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.textAlign = 'center'; ctx.fillStyle = '#1f2a44'; ctx.font = `700 ${Math.round(26 * k)}px ${FONT}`; ctx.fillText(o.title, cx, y + 266 * k);
-  ctx.fillStyle = '#5b6178'; ctx.font = `500 ${Math.round(19 * k)}px ${FONT}`;
-  ctx.fillText(`${o.top.name} · ${o.bottom.name} · ${o.point.name}`.slice(0, 26), cx, y + 292 * k); ctx.textAlign = 'left';
+// v2.3: 체형별 코디 블록 — 모델 그림 + 아이템 이름·색
+function drawLook(ctx, l, x, y, w, k = 1) {
+  const h = 380 * k; ctx.fillStyle = 'rgba(255,255,255,.75)'; rr(ctx, x, y, w, h, 22 * k); ctx.fill(); ctx.strokeStyle = '#efe7df'; ctx.lineWidth = 2; ctx.stroke();
+  const fh = 340 * k; drawBody(ctx, l, x + 14 * k, y + 20 * k, fh);
+  const tx = x + 14 * k + fh * 120 / 260 + 18 * k;
+  ctx.fillStyle = '#1f2a44'; ctx.font = `700 ${Math.round(32 * k)}px ${FONT}`; ctx.fillText(l.title, tx, y + 70 * k);
+  l.labels.forEach((it, i) => { const yy = y + (130 + i * 78) * k;
+    ctx.fillStyle = it.color.hex; ctx.beginPath(); ctx.arc(tx + 12 * k, yy - 9 * k, 12 * k, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.stroke();
+    ctx.fillStyle = '#1f2a44'; ctx.font = `600 ${Math.round(24 * k)}px ${FONT}`; ctx.fillText(it.name, tx + 32 * k, yy);
+    ctx.fillStyle = '#6a7089'; ctx.font = `400 ${Math.round(21 * k)}px ${FONT}`; ctx.fillText(it.color.name, tx + 32 * k, yy + 28 * k); });
 }
 
 // v1.6: 인스타그램 스토리 크기(1080×1920) 요약 카드
@@ -215,9 +206,9 @@ export function renderStoryCanvas(canvas, r) {
     ctx.fillText(`올리브영 예시: ${lips.map((c) => `${c.brand} ${c.shade}`).join(' · ')}`, P, y); y += 24; }
   y += 25;
   // 코디 3개
-  if (r.outfits?.length) {
-    ctx.font = `700 36px ${FONT}`; ctx.fillStyle = '#1f2a44'; ctx.fillText('코디 색 조합', P, y); y += 24;
-    const ow = (W - 2 * P - 2 * 20) / 3; r.outfits.forEach((o, i) => drawOutfit(ctx, o, P + i * (ow + 20), y, ow, 0.9)); y += 300 * 0.9 + 30;
+  if (r.body?.looks?.length) {
+    ctx.font = `700 36px ${FONT}`; ctx.fillStyle = '#1f2a44'; ctx.fillText(`체형별 코디 · ${r.body.name}`, P, y); y += 24;
+    const lw = (W - 2 * P - 20) / 2; r.body.looks.forEach((l, i) => drawLook(ctx, l, P + i * (lw + 20), y, lw, 0.72)); y += 380 * 0.72 + 30;
   }
   // 피할 색
   ctx.font = `700 32px ${FONT}`; ctx.fillStyle = '#1f2a44'; ctx.fillText('피하면 좋은 색', P, y + 34);

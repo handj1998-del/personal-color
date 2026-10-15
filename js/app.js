@@ -1,6 +1,6 @@
 import { whiteBalanceFromPaper, applyDrape, classify, confidence, labToRgb, PROTOTYPES, WARM, lightCheck } from './color.js';
 import { analyzeImage, ovalGeom, paperGeom, paperRgb, estimateCast } from './analyzer.js';
-import { SEASONS, SEASON_ORDER, drapeRounds, OUTFITS, CELEBS, CELEB_NOTE } from './seasons.js';
+import { SEASONS, SEASON_ORDER, drapeRounds, CELEBS, CELEB_NOTE } from './seasons.js';
 import { loadFace, detectFace, faceStatus } from './face.js';
 import { renderCardCanvas, renderStoryCanvas } from './card.js';
 import { createStore, admit, STORAGE_PREFIX, readSyncQr } from './ticket.js';
@@ -13,6 +13,7 @@ const LOCKED = SHARED_BOOT, LOCK_SCREENS = new Set(['shared', 'sharedErr', 'shar
 if (LOCKED) document.documentElement.classList.add('locked');
 import { initDecoder, decodeVideo, MAX_SIDE, MAX_SIDE_SYNC } from './qr.js';
 import { initAdmin } from './admin.js';
+import { BODY_TYPES, BODY_ORDER, bodyLooks, bodySvg } from './body.js';
 import { cosmeticsReady, cosmeticsHtml, cosmeticsFor, cosmeticsLabel } from './cosmetics.js';
 import { faceMetrics, classifyFaceShape, FACE_SHAPES, FACE_ORDER, GLASS_SHAPES, LIPS, FRAMES, glassesSvg, browSvg, HAIR_COLORS, HAIR_STYLES, HAIR_REC, HAIR_GENDERS, hairSvg } from './style.js';
 
@@ -26,7 +27,7 @@ const NO_IDLE = new Set(['cover', 'home', 'shared', 'sharedErr', 'sharedExp']);
 const START = window.__PC_NOCOVER === 1 ? 'home' : 'cover'; // 고객 무동작 자동 초기화 제외 화면 (관리자는 별도 자동 로그아웃)
 const STEP_LABELS = [['consent', '동의'], ['ticket', '진단권'], ['calib', '보정'], ['capture', '촬영'], ['auto', '분석'], ['drape', '드레이핑'], ['result', '결과']];
 
-const fresh = () => ({ screen: 'home', after: null, resume: false, ticket: null, wb: null, auto: null, votes: [], roundIdx: 0, rounds: null, browse: { L: 'spring_light', R: 'summer_light', i: 0 }, drapeTab: 'rounds', final: null, drapeOnly: false, faceShape: null, resTab: 'color', hairGender: 'f', photo: null });
+const fresh = () => ({ screen: 'home', after: null, resume: false, ticket: null, wb: null, auto: null, votes: [], roundIdx: 0, rounds: null, browse: { L: 'spring_light', R: 'summer_light', i: 0 }, drapeTab: 'rounds', final: null, drapeOnly: false, faceShape: null, resTab: 'color', hairGender: 'f', bodyType: 'straight', photo: null });
 let S = fresh();
 let stream = null, facing = 'user', streamFacing = null, meterTimer = null, cameraBusy = false, seq = 0;
 // QR 확인 화면은 뒤 카메라를 먼저 사용 (⇄로 바꾸면 이 기기에서 기억)
@@ -545,8 +546,17 @@ function resultPane(tab) {
     <h2 class="sec">베스트 컬러</h2><div class="palette">${s.best.map((c) => sw(c)).join('')}</div>
     <h2 class="sec">피하면 좋은 컬러</h2><div class="palette avoid">${s.avoid.map((c) => sw(c, 'sm')).join('')}</div>
     <div class="tipsgrid"><div><h3>💄 메이크업</h3><p>${s.makeup}</p></div><div><h3>💇 헤어</h3><p>${s.hair}</p></div><div><h3>💍 액세서리</h3><p>${s.acc}</p></div></div>
-    <h2 class="sec">👚 코디 색 조합</h2><div class="outfits">${OUTFITS[r.id].map((x) => `<div class="outfit"><div class="ofsw" aria-hidden="true"><i style="background:${x.top.hex}"></i><i style="background:${x.bottom.hex}"></i><i class="pt" style="background:${x.point.hex}"></i></div><b>${x.title}</b><span>상의 ${x.top.name} · 하의 ${x.bottom.name} · 포인트 ${x.point.name}</span></div>`).join('')}</div>
+    ${bodyHtml(r.id)}
     <div class="celebs"><h3>⭐ 같은 타입으로 자주 언급되는 예시 <small>(참고)</small></h3><p>${CELEBS[r.id].join(', ')}</p><p class="sub">${CELEB_NOTE}</p></div>`;
+}
+// v2.3: 체형(골격) 선택 + 체형별 코디 (얼굴만 분석하므로 고객이 직접 골라요)
+function bodyHtml(id) {
+  const bt = BODY_TYPES[S.bodyType] ? S.bodyType : 'straight', B = BODY_TYPES[bt];
+  return `<div class="bodyhead"><h2 class="sec">👗 체형별 코디 <small>${B.name}</small></h2>
+    <div class="seg" role="group" aria-label="체형 선택">${BODY_ORDER.map((k) => `<button type="button" class="segbtn ${k === bt ? 'on' : ''}" data-bt="${k}" aria-pressed="${k === bt}">${BODY_TYPES[k].name}</button>`).join('')}</div></div>
+    <p class="tip bodydesc">${BODY_ORDER.map((k) => `<span class="${k === bt ? 'on' : ''}"><b>${BODY_TYPES[k].name}</b> ${BODY_TYPES[k].desc}</span>`).join('')}</p>
+    <div class="looks">${bodyLooks(id, bt).map((l) => `<figure class="look">${bodySvg(l, `${B.name} ${l.title} 코디 예시: ${l.labels.map((x) => `${x.name} ${x.color.name}`).join(', ')}`)}<figcaption><b>${l.title}</b><ul>${l.labels.map((x) => `<li><i style="background:${x.color.hex}" aria-hidden="true"></i>${x.name} <span>${x.color.name}</span></li>`).join('')}</ul></figcaption></figure>`).join('')}</div>
+    <p class="sub bodynote">체형은 거울을 보고 가장 가까운 것을 골라 주세요. 색은 이 진단 타입의 코디 팔레트에서 골랐어요.</p>`;
 }
 // 관리자 설정 '얼굴형 측정값 보기' (직원 확인용): 측정 비율·표준점수·후보 확률
 function faceDebug() {
@@ -577,7 +587,7 @@ function renderResult() {
   prepCards();
 }
 for (const id of ['resultCard', 'sharedCard']) {
-  $(id).addEventListener('click', (e) => { if (!S.final) return; const hg = e.target.closest('[data-hg]'); if (hg) { S.hairGender = hg.dataset.hg; renderResult(); return; } const t = e.target.closest('[data-rtab]'); if (!t) return; S.resTab = t.dataset.rtab; renderResult(); });
+  $(id).addEventListener('click', (e) => { if (!S.final) return; const hg = e.target.closest('[data-hg]'); if (hg) { S.hairGender = hg.dataset.hg; renderResult(); return; } const bt = e.target.closest('[data-bt]'); if (bt) { S.bodyType = bt.dataset.bt; renderResult(); return; } const t = e.target.closest('[data-rtab]'); if (!t) return; S.resTab = t.dataset.rtab; renderResult(); });
   $(id).addEventListener('change', (e) => { if (e.target.id !== 'selFace' || !S.final) return; S.faceShape = e.target.value || null; renderResult(); });
 }
 // v1.7: 결과 버튼 '더보기' (스토리 이미지·드레이핑 다시 보기)
@@ -592,11 +602,11 @@ $('btnSavePng').onclick = () => saveCard('full');
 $('btnSaveStory').onclick = () => saveCard('story');
 // v1.6: 'full' = 긴 결과 카드, 'story' = 인스타 스토리 크기(1080×1920). 둘 다 결과 보기 QR·주소 포함 (얼굴 사진 없음)
 // v1.7: 결과 이미지를 미리 만들어 둠 → 버튼을 누르는 즉시 공유 시트를 엶 (iPhone은 누른 뒤 시간이 걸리면 공유를 막음)
-const cardKey = () => (S.final ? [S.final.id, S.final.second?.id, S.final.conf.level, S.final.method, S.final.date, faceId(), S.hairGender, S.final.exp, bizName(), cosmeticsLabel()].join('|') : '');
+const cardKey = () => (S.final ? [S.final.id, S.final.second?.id, S.final.conf.level, S.final.method, S.final.date, faceId(), S.hairGender, S.bodyType, S.final.exp, bizName(), cosmeticsLabel()].join('|') : '');
 let cardCache = { key: '', files: {} }, prepTimer = null;
 async function makeCardFile(kind) {
   await Promise.all([logoReady(), cosmeticsReady()]);
-  const data = { ...S.final, faceId: faceId(), hairGender: S.hairGender, url: resultUrl(), appUrl: location.origin + location.pathname, legal: LEGAL_NOTICE, brand: bizName(), products: cosmeticsFor(S.final.id), productsLabel: cosmeticsLabel(), outfits: OUTFITS[S.final.id], celebs: CELEBS[S.final.id] };
+  const data = { ...S.final, faceId: faceId(), hairGender: S.hairGender, url: resultUrl(), appUrl: location.origin + location.pathname, legal: LEGAL_NOTICE, brand: bizName(), products: cosmeticsFor(S.final.id), productsLabel: cosmeticsLabel(), body: { name: BODY_TYPES[S.bodyType]?.name || '', looks: bodyLooks(S.final.id, S.bodyType) }, celebs: CELEBS[S.final.id] };
   const cv = document.createElement('canvas'); (kind === 'story' ? renderStoryCanvas : renderCardCanvas)(cv, data);
   const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
   cv.width = cv.height = 1;

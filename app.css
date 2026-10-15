@@ -425,3 +425,14 @@ h1, h2 { color:var(--navy); }
 a.pchip { padding-right:30px; } a.pchip .ext { position:absolute; right:10px; top:10px; font-size:14px; color:var(--sub); }
 a.pchip:focus-visible { outline:3px solid var(--navy); outline-offset:2px; }
 .pnote { margin-top:6px; }
+/* v2.3 체형별 코디 */
+.bodyhead { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.bodydesc { display:flex; flex-direction:column; gap:4px; }
+.bodydesc span { color:var(--sub); } .bodydesc span.on { color:#1f2a44; } .bodydesc span.on b { color:#1f2a44; }
+.looks { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin:8px 0 4px; }
+.look { margin:0; display:flex; align-items:center; gap:12px; padding:12px; background:rgba(255,255,255,.7); border:1px solid #efe7df; border-radius:18px; }
+.bodysvg { width:96px; height:208px; flex:none; }
+.look figcaption b { font-size:17px; } .look ul { list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:8px; }
+.look li { font-size:15px; display:flex; flex-wrap:wrap; align-items:center; gap:6px; line-height:1.3; } .look li span { flex-basis:100%; padding-left:22px; font-size:13px; color:var(--sub); }
+.look li i { width:16px; height:16px; border-radius:50%; box-shadow:0 0 0 1px rgba(0,0,0,.12); flex:none; }
+@media (max-width:600px) { .looks { grid-template-columns:1fr; } }

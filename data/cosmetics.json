@@ -1,7 +1,7 @@
 {
- "version": 2,
- "verifiedAt": "2026-10-13",
- "label": "제품 정보 2026.10.13 기준",
+ "version": 3,
+ "verifiedAt": "2026-10-19",
+ "label": "제품 정보 2026.10.19 기준",
  "notice": "2026.10 기준, 판매 종료·가격 변동 가능. 색상은 화면에 따라 다르게 보일 수 있어요. 타입 추천은 매장 기준이며 브랜드의 공식 분류가 아니에요.",
  "hexNote": "hex는 근사 스와치(공식 색 설명·호수 이름 기준)이며 실제 제품 색과 다를 수 있어요.",
  "products": {
@@ -11,7 +11,7 @@
    "cat": "lip",
    "goodsNo": "A000000241210",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000241210",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-13)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-19)"
   },
   "btc": {
    "brand": "롬앤",
@@ -19,7 +19,7 @@
    "cat": "blush",
    "goodsNo": "A000000172610",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000172610",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-13)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-19)"
   },
   "btp": {
    "brand": "롬앤",
@@ -27,7 +27,7 @@
    "cat": "eye",
    "goodsNo": "A000000148390",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000148390",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-13)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-19)"
   },
   "mgt": {
    "brand": "페리페라",
@@ -35,7 +35,7 @@
    "cat": "lip",
    "goodsNo": "A000000244834",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000244834",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-13)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-19)"
   },
   "cpe": {
    "brand": "클리오",
@@ -43,7 +43,7 @@
    "cat": "eye",
    "goodsNo": "A000000188988",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000188988",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-13)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-19)"
   },
   "vlt": {
    "brand": "3CE",
@@ -51,7 +51,7 @@
    "cat": "lip",
    "goodsNo": "A000000232518",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000232518",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-13)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-19)"
   },
   "dsp": {
    "brand": "데이지크",
@@ -59,7 +59,7 @@
    "cat": "eye",
    "goodsNo": "A000000147801",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000147801",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-13)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-19)"
   },
   "dbc": {
    "brand": "데이지크",
@@ -67,7 +67,7 @@
    "cat": "blush",
    "goodsNo": "A000000164726",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000164726",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-13)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-19)"
   },
   "hme": {
    "brand": "힌스",
@@ -75,7 +75,7 @@
    "cat": "lip",
    "goodsNo": "A000000148546",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000148546",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-13)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-19)"
   },
   "adt": {
    "brand": "어뮤즈",
@@ -83,7 +83,7 @@
    "cat": "lip",
    "goodsNo": "A000000158147",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000158147",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-13)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-19)"
   }
  },
  "types": {
@@ -104,8 +104,8 @@
    },
    {
     "p": "vlt",
-    "shade": "차일드라이크",
-    "hex": "#ef9a8c",
+    "shade": "피그타치오",
+    "hex": "#e9a08c",
     "hexApprox": true,
     "verify": "verified"
    },
@@ -385,6 +385,6 @@
   ]
  },
  "verify": {
-  "verified": "올리브영 상품 페이지에서 판매 중·옵션명 브라우저 확인 (2026-10-13)"
+  "verified": "올리브영 상품 페이지에서 판매 중·옵션명 브라우저 확인 (2026-10-19)"
  }
 }

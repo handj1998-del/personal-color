@@ -1,0 +1,4 @@
+media/
+shots/
+*-output.txt
+__pycache__/

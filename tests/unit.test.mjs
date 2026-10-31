@@ -471,3 +471,27 @@ test('v1.5 헤어: 시즌별 헤어 컬러 4색·피할 색, 얼굴형×성별 3
   const cf = SH.encodeResult(f0, 'round', 'f', EXP); assert.equal(SH.decodeResult(cf, NOW).sharedGender, 'f');
   assert.equal(SH.decodeResult('1' + cm.slice(1, 14), NOW).expired, true);
 });
+
+test('v2.3.1 점검 수정: 백업 ID 검사·CSV 수식 방지·사용 기록 QR 쪽 번호·결과 주소 체형', async () => {
+  const NOW = Date.UTC(2026, 9, 31, 3);
+  // 백업 합치기: 형식에 맞지 않는 ID(HTML 등)는 버림
+  const s = memStore(); const ok = await TK.makeToken({ issuedMs: NOW });
+  assert.equal(s.mergeIssued([{ id: '<img src=x onerror=alert(1)>', at: 1 }, { id: 'abc', at: 1 }, { ...ok, at: 2 }]), 1);
+  assert.deepEqual(s.issued().map((x) => x.id), [ok.id]);
+  // CSV: =,+,-,@ 로 시작하는 값은 글자로 처리
+  s.addIssued([{ ...(await TK.makeToken({ issuedMs: NOW })), at: 3, memo: '=HYPERLINK("x")' }, { ...(await TK.makeToken({ issuedMs: NOW })), at: 4, memo: '@SUM(1)' }]);
+  const csv = TK.toCsv(s, NOW); assert.ok(csv.includes(`"'=HYPERLINK(""x"")"`)); assert.ok(csv.includes(`"'@SUM(1)"`)); assert.ok(!/,"[=+\-@]/.test(csv));
+  // 사용 기록 QR: 쪽 번호가 전체보다 크면 거부 (서명은 맞아도)
+  for (const [pg, ok2] of [['3/2', false], ['0/2', false], ['2/2', true]]) { const body = `PCU1:${pg}:U${ok.id}`; const q = body + ':' + (await TK.hmacHex(body)).slice(0, 12).toUpperCase(); assert.equal((await TK.readSyncQr(q)).ok, ok2, pg); }
+  // 결과 주소: 체형 왕복 · 예전 주소 호환 · 체형 변조 거부 · 상호 검사
+  const f0 = { id: 'autumn_mute', second: SEASONS.spring_light, conf: { level: 'mid' }, method: '드레이핑', date: '2026.10.31' };
+  const EXP = NOW + SH.RESULT_TTL_MS;
+  const c = SH.encodeResult(f0, 'round', 'f', EXP, 'H.O.W', { type: 'wave', gender: 'm' });
+  assert.match('#r=' + c, SH.RESULT_RE); assert.match(c, /&t=1m&b=H\.O\.W$/);
+  const d = SH.decodeResult(c, NOW); assert.equal(d.sharedBody, 'wave'); assert.equal(d.sharedBodyGender, 'm'); assert.equal(d.brand, 'H.O.W');
+  assert.equal(SH.decodeResult(c.replace('&t=1m', '&t=2m'), NOW), null, '체형 변조 거부');
+  assert.equal(SH.decodeResult(c.replace('&t=1m', ''), NOW), null, '체형 제거도 서명 불일치');
+  const old = SH.encodeResult(f0, 'round', 'f', EXP, 'H.O.W'); assert.equal(SH.decodeResult(old, NOW).sharedBody, null, '체형 없는 주소도 열림');
+  assert.equal(SH.decodeResult(SH.encodeResult(f0, null, 'f', EXP, 'A<b>'), NOW).brand, '', '꺾쇠 상호는 넣지 않음');
+  assert.equal(SH.decodeResult(old.replace('H.O.W', '%3Cx%3E'), NOW), null);
+});

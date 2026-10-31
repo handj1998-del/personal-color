@@ -106,7 +106,7 @@ export function createStore(backend = globalThis.localStorage) {
     // 다른 기기·백업에서 가져온 기록 합치기 (이미 있는 기록은 유지)
     mergeUsed(map, src = 'sync') { const u = get(K.used, {}); let n = 0; for (const [id, v] of Object.entries(map || {})) if (!u[id]) { u[id] = { at: +v?.at || Date.now(), src: v?.src || src }; n++; } set(K.used, u); return n; },
     mergeRevoked(map) { const r = get(K.revoked, {}); let n = 0; for (const [id, at] of Object.entries(map || {})) if (!r[id]) { r[id] = +at || Date.now(); n++; } set(K.revoked, r); const all = get(K.issued, []); for (const it of all) if (r[it.id] && !it.revoked) it.revoked = r[it.id]; set(K.issued, all); return n; },
-    mergeIssued(list) { const all = get(K.issued, []); const have = new Set(all.map((x) => x.id)); const add = (list || []).filter((x) => x && typeof x.id === 'string' && !have.has(x.id)); set(K.issued, [...add, ...all].sort((a, b) => (b.at || 0) - (a.at || 0))); return add.length; },
+    mergeIssued(list) { const all = get(K.issued, []); const have = new Set(all.map((x) => x.id)); const add = (list || []).filter((x) => x && typeof x.id === 'string' && isId(x.id) && !have.has(x.id)); set(K.issued, [...add, ...all].sort((a, b) => (b.at || 0) - (a.at || 0))); return add.length; },
     cfg() { const c = get(K.cfg, {}); if (OLD_DEFAULT_OPERATORS.includes(c.operator)) { c.operator = DEFAULT_CFG.operator; set(K.cfg, c); } return { ...DEFAULT_CFG, ...c }; }, setCfg(v) { set(K.cfg, { ...get(K.cfg, {}), ...v }); },
     // 시계 확인: 지금까지 본 가장 늦은 시각 기억 (시계를 뒤로 돌려 만료·잠금을 피하지 못하게)
     seen: () => +get(K.seen, 0) || 0,
@@ -216,6 +216,7 @@ export async function readSyncQr(text) {
   if ((await hmacHex(body)).slice(0, 12).toUpperCase() !== m[4]) return { ok: false, msg: '사용 기록 QR이 올바르지 않아요.' };
   const used = {}, revoked = {}, now = Date.now();
   for (const x of m[3].match(/.{9}/g) || []) (x[0] === 'U' ? (used[x.slice(1)] = { at: now, src: 'sync' }) : (revoked[x.slice(1)] = now));
+  if (+m[1] < 1 || +m[1] > +m[2]) return { ok: false, msg: '사용 기록 QR이 올바르지 않아요.' };
   return { ok: true, page: +m[1], pages: +m[2], used, revoked };
 }
 // ---------- 통계 ----------
@@ -238,7 +239,7 @@ export function stats(store, now = Date.now()) {
   return { today: todayN, week: weekN, month: monthN, days: days.map((x) => ({ label: fmtDay(x.day).slice(5), n: x.n })), src, issued: issued.length, status: st, soon, batches: Object.values(batches).sort((a, b) => b.at - a.at) };
 }
 export function toCsv(store, now = Date.now()) {
-  const used = store.used(), esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`, t = (ms) => (ms ? new Date(ms).toLocaleString('ko-KR', { hour12: false }) : '');
+  const used = store.used(), esc = (v) => { let x = String(v ?? ''); if (/^[=+\-@\t\r]/.test(x)) x = "'" + x; return `"${x.replace(/"/g, '""')}"`; }, t = (ms) => (ms ? new Date(ms).toLocaleString('ko-KR', { hour12: false }) : '');
   const rows = [['일련번호', '코드', '발급일', '만료일', '묶음 메모', '상태', '사용 시각', '사용 방법', '취소 시각']];
   for (const it of store.issued()) { const [, l] = statusOf(store, it, now); const u = used[it.id]; rows.push([it.id, it.token || '', fmtDay(it.issued), it.exp ? fmtDay(it.exp) : '', it.memo || '', l, t(u?.at), u ? { qr: 'QR', manual: '코드 입력', sync: '다른 기기', admin: '관리자' }[u.src] || u.src : '', t(it.revoked)]); }
   return '\ufeff' + rows.map((r) => r.map(esc).join(',')).join('\r\n');

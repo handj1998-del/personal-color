@@ -1,9 +1,9 @@
-import { whiteBalanceFromPaper, applyDrape, classify, confidence, labToRgb, PROTOTYPES, WARM, lightCheck } from './color.js';
-import { analyzeImage, ovalGeom, paperGeom, paperRgb, estimateCast } from './analyzer.js';
+import { whiteBalanceFromPaper, applyDrape, classify, confidence, labToRgb, PROTOTYPES } from './color.js';
+import { analyzeImage, ovalGeom, paperGeom, paperRgb } from './analyzer.js';
 import { SEASONS, SEASON_ORDER, drapeRounds, CELEBS, CELEB_NOTE } from './seasons.js';
 import { loadFace, detectFace, faceStatus } from './face.js';
 import { renderCardCanvas, renderStoryCanvas } from './card.js';
-import { createStore, admit, STORAGE_PREFIX, readSyncQr } from './ticket.js';
+import { createStore, admit, readSyncQr } from './ticket.js';
 import { drawQr, brandName, isDefaultBrand, logoReady } from './qrcard.js';
 import { encodeResult, decodeResult, RESULT_RE, LEGAL_NOTICE, RESULT_TTL_MS } from './share.js';
 // 고객 휴대폰으로 연 결과 보기(#r=…): 서비스 워커(분석 엔진·모델 내려받기)·화면 꺼짐 방지·시계 기록을 건너뜀
@@ -18,8 +18,6 @@ import { cosmeticsReady, cosmeticsHtml, cosmeticsFor, cosmeticsLabel } from './c
 import { faceMetrics, classifyFaceShape, FACE_SHAPES, FACE_ORDER, GLASS_SHAPES, LIPS, FRAMES, glassesSvg, browSvg, HAIR_COLORS, HAIR_STYLES, HAIR_REC, HAIR_GENDERS, hairSvg } from './style.js';
 
 const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const SVGNS = 'http://www.w3.org/2000/svg';
 const CAMERA_SCREENS = new Set(['ticket', 'calib', 'capture', 'drape', 'adminScan']);
 const SCAN_SCREENS = new Set(['ticket', 'adminScan']);
 const NO_IDLE = new Set(['cover', 'home', 'shared', 'sharedErr', 'sharedExp']);
@@ -95,8 +93,19 @@ async function startCamera() {
     stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: want }, width: { ideal: 1280 }, height: { ideal: 720 } } });
     streamFacing = want;
     if (!CAMERA_SCREENS.has(S.screen)) { stopCamera(); return false; }
-    video.srcObject = stream; await video.play().catch(() => {});
-    await new Promise((r) => (video.videoWidth ? r() : video.addEventListener('loadedmetadata', r, { once: true })));
+    const s = stream; camGen++; const gen = camGen;
+    video.srcObject = s;
+    // v2.3.1: 켜는 도중 stopCamera가 불리면 play()·loadedmetadata가 끝나지 않아 '카메라를 켜는 중…'에 멈추던 문제 → 중단 확인·8초 타임아웃
+    await new Promise((r) => {
+      let end = false; const done = () => { if (end) return; end = true; clearTimeout(t); clearInterval(iv); video.removeEventListener('loadedmetadata', meta); r(); };
+      const meta = () => { if (video.videoWidth) done(); };
+      const t = setTimeout(done, 8000);
+      const iv = setInterval(() => { if (stream !== s || gen !== camGen || video.videoWidth) done(); }, 200);
+      video.addEventListener('loadedmetadata', meta);
+      video.play().catch(() => {}).then(meta);
+    });
+    if (stream !== s || gen !== camGen) return false;
+    if (!video.videoWidth) { stopCamera(); camFail('카메라 화면을 불러오지 못했어요. 다시 시도해 주세요.'); return false; }
     const st = stream.getVideoTracks()[0]?.getSettings?.() || {};
     const mirror = (st.facingMode || streamFacing) === 'user';
     $('stage').classList.toggle('mirror', mirror);
@@ -109,7 +118,9 @@ async function startCamera() {
     return false;
   } finally { cameraBusy = false; }
 }
+let camGen = 0;
 function stopCamera() {
+  camGen++;
   clearInterval(meterTimer); meterTimer = null; stopScan();
   if (stream) stream.getTracks().forEach((t) => t.stop());
   stream = null; streamFacing = null; video.pause(); video.srcObject = null; $('meter').innerHTML = '';
@@ -210,7 +221,7 @@ function startMeter() {
         rgb.uniformity < 0.65 ? ['bad', '사각형 안을 흰 종이로 채워 주세요'] : wb.castChroma > 12 ? ['warn', `조명 색 치우침 있음 (${castName(wb.paperLab)})`] : ['ok', '색 치우침 적음']];
     } else {
       const res = analyzeImage(img, { gains, calibrated: !!S.wb });
-      if (!res.ok) r = [['warn', '얼굴을 타원 안에 맞춰 주세요']];
+      if (!res.ok) r = res.reason === 'dark' ? [['bad', '어두움 — 더 밝은 곳으로 옮겨 주세요']] : [['warn', '얼굴을 타원 안에 맞춰 주세요']];
       else {
         const li = res.light.issues;
         r = [li.find((x) => x.code === 'dark') ? ['bad', '어두움'] : li.find((x) => x.code === 'bright') ? ['bad', '너무 밝음'] : ['ok', '밝기 적당'],
@@ -630,7 +641,8 @@ async function saveCard(kind = 'full') {
   const ready = cardCache.key === cardKey() ? cardCache.files[kind] : null;
   const file = ready || (await makeCardFile(kind)), blob = file;
   const name = file.name;
-  if (/iPhone|iPad|Android/i.test(navigator.userAgent) && navigator.canShare?.({ files: [file] })) {
+  const mobile = /iPhone|iPad|Android/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // v2.3.1: iPadOS는 Mac처럼 보임
+  if (mobile && navigator.canShare?.({ files: [file] })) {
     try { await navigator.share({ files: [file], title: '퍼스널컬러 결과', text: LEGAL_NOTICE }); toast('⚖ ' + LEGAL_NOTICE, 6000); return; } catch (e) {
       if (e.name === 'AbortError') return;
       // 공유가 막혔으면(사용자 동작 시간 초과 등) 아래 다운로드로 대신 저장
@@ -647,7 +659,7 @@ const resultExp = () => (S.final.exp ??= Math.ceil((Date.now() + RESULT_TTL_MS) 
 // 왼쪽 위 상호 한 곳: 기본(H.O.W)이면 마크 그림만, 다른 이름이면 글자만
 function setBrandLine(b, name) { const def = isDefaultBrand(name), img = b.parentElement.querySelector('.bizmark'); b.textContent = name; b.hidden = def; img.hidden = !def; }
 const bizName = () => brandName(S.screen === 'shared' ? S.final?.brand : store.cfg().operator);
-const resultUrl = () => location.origin + location.pathname + '#r=' + encodeResult(S.final, faceId(), S.hairGender, resultExp(), bizName());
+const resultUrl = () => location.origin + location.pathname + '#r=' + encodeResult(S.final, faceId(), S.hairGender, resultExp(), bizName(), { type: S.bodyType, gender: S.bodyGender });
 const fmtExp = (ms) => { const d = new Date(ms), p = (n) => String(n).padStart(2, '0'); return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
 $('btnResultQr').onclick = () => {
   if (!S.final) return;
@@ -658,8 +670,8 @@ $('btnRqClose').onclick = () => { $('rqView').hidden = true; const cv = $('rqCan
 // 24시간이 지나면: 결과를 화면에서 지우고(삭제로 간주) 이 기기에 남았을 수 있는 결과 관련 데이터도 지움
 async function expireShared() {
   clearTimeout(openShared._t); dropCards(); S.final = null; $('sharedCard').innerHTML = ''; $('sharedExpiry').textContent = '';
-  try { sessionStorage.clear(); for (const k of Object.keys(localStorage)) if (!k.startsWith(STORAGE_PREFIX)) localStorage.removeItem(k); } catch {}
-  try { if (!(await navigator.serviceWorker?.getRegistration?.())) for (const k of await caches.keys()) await caches.delete(k); } catch {}
+  // v2.3.1: 같은 주소(github.io)의 다른 앱 저장값은 건드리지 않음 — 이 앱은 localStorage에 pcqr.* 만 쓰고 결과·사진은 저장하지 않음
+  try { if (!(await navigator.serviceWorker?.getRegistration?.())) for (const k of await caches.keys()) if (k.startsWith('pc-v')) await caches.delete(k); } catch {}
   go('sharedExp');
 }
 function openShared() {
@@ -671,7 +683,7 @@ function openShared() {
   $('sharedExpiry').textContent = `⏰ 이 결과는 ${fmtExp(f.exp)}까지 볼 수 있어요. 그 뒤에는 이 주소로 다시 열 수 없으니 필요하면 지금 이미지로 저장해 주세요.`;
   clearTimeout(openShared._t); openShared._t = setTimeout(expireShared, Math.min(f.exp - Date.now(), 2 ** 31 - 1));
   setBrandLine($('sharedBrand'), brandName(f.brand)); document.title = `${brandName(f.brand)} 퍼스널컬러 결과`;
-  S.final = f; S.faceShape = f.sharedFace; S.hairGender = f.sharedGender || 'f'; wake(); go('shared').then(renderResult); return true;
+  S.final = f; S.faceShape = f.sharedFace; S.hairGender = f.sharedGender || 'f'; if (f.sharedBody) { S.bodyType = f.sharedBody; S.bodyGender = f.sharedBodyGender; } wake(); go('shared').then(renderResult); return true;
 }
 // 결과 전용 화면: 주소(#) 바꾸기·뒤로 가기로 다른 화면이나 다른 결과로 가지 않게 원래 주소로 되돌림
 function holdLock() { if (location.hash !== LOCK_HASH) history.replaceState(null, '', location.pathname + location.search + LOCK_HASH); }
@@ -708,7 +720,7 @@ async function resetAll(confirmFirst = true) {
   $('toast').hidden = true; $('modal').hidden = true;
   setDrape('transparent', null, '', '');
   // 진단 데이터는 저장하지 않지만, 혹시 남은 값이 있으면 지움 (진단권 사용 기록 pcqr.* 만 유지: 코드 ID·시각, 개인정보 없음)
-  try { sessionStorage.clear(); for (const k of Object.keys(localStorage)) if (!k.startsWith(STORAGE_PREFIX)) localStorage.removeItem(k); } catch {}
+  // v2.3.1: 같은 주소(github.io)의 다른 앱 저장값은 건드리지 않음 — 이 앱은 localStorage에 pcqr.* 만 쓰고 결과·사진은 저장하지 않음
   await go(START);
 }
 $('btnReset').onclick = () => resetAll(true);

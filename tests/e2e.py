@@ -261,9 +261,8 @@ with sync_playwright() as pw:
     b = launch(pw, 'dark'); c = ctx(b); p = page(c)
     to_capture(p); p.wait_for_timeout(800)
     m = p.inner_text('#meter')
-    # 알려진 문제(v1.7~): 너무 어두우면 analyzeImage가 ok:false('dark')라 실시간 표시가 '어두움' 대신 '얼굴을 타원 안에 맞춰 주세요'로 나옴 → 경고만 출력
-    if '어두움' not in m: print('KNOWN 어두운 조명 실시간 표시가 얼굴 위치 안내로 나옴:', m)
-    check('어두운 조명 실시간 안내 표시', '어두움' in m or '타원' in m, m)
+    # v2.3.1: 너무 어두워 analyzeImage가 ok:false('dark')여도 실시간 표시는 '어두움' (예전엔 얼굴 위치 안내로 나옴)
+    check('어두운 조명 실시간 안내 = 어두움', '어두움' in m and '타원' not in m, m)
     p.click('#btnCapture'); p.wait_for_timeout(2500)
     # v1.7+: 너무 어두우면 결과 대신 다시 찍기 안내
     check('어두운 조명: 결과 대신 다시 찍기 안내', '너무 어두워서' in p.inner_text('#toast') and st(p, '__pc.state.screen') != 'auto', p.inner_text('#toast'))

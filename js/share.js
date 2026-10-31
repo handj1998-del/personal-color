@@ -3,6 +3,7 @@ export const LEGAL_NOTICE = '이 결과는 받은 분 본인의 개인 참고용
 // 결과 → 짧은 코드 (고객 휴대폰용 주소 #r=… 에 담음). 얼굴 사진·측정값 없이 타입·신뢰도·방법·날짜·얼굴형만
 import { SEASONS, SEASON_ORDER } from './seasons.js';
 import { FACE_ORDER } from './style.js';
+import { BODY_ORDER } from './body.js';
 export const CONF_C = { high: 'h', mid: 'm', low: 'l' }, METHODS = ['자동 분석', '드레이핑', '자동 분석 + 드레이핑'];
 function encodeV1(f, faceSel, gender = 'f') {
   const fi = FACE_ORDER.indexOf(faceSel || ''), d = f.date.replaceAll('.', '');
@@ -34,24 +35,29 @@ function hmac(msg) {
   const outer = new Uint8Array(96); outer.set(op); outer.set(sha256(inner), 64);
   const h = sha256(outer); return ((((h[0] << 24) | (h[1] << 16) | (h[2] << 8) | h[3]) >>> 0) * 256 + h[4]).toString(36).padStart(8, '0').slice(-8);
 }
-// 형식: '2' + 결과(14자) + 만료 시각(분 단위, 36진수 7자) + 서명 8자 [+ '&b=' 상호(운영 주체, 서명에 포함)]
-export function encodeResult(f, faceSel, gender = 'f', expMs, brand = '') {
-  const body = encodeV1(f, faceSel, gender).slice(1), exp = Math.floor(expMs / 60000).toString(36).padStart(7, '0');
-  const core = '2' + body + exp, b = String(brand || '').trim().slice(0, 20);
-  return core + hmac(core + (b ? '|' + b : '')) + (b ? '&b=' + encodeURIComponent(b) : '');
+// 형식: '2' + 결과(14자) + 만료 시각(분 단위, 36진수 7자) + 서명 8자 [+ '&t=' 체형(번호+성별, v2.3.1)] [+ '&b=' 상호(운영 주체)] — 체형·상호 모두 서명에 포함
+// 상호: 1~20자, 제어 문자·꺾쇠 없음 (화면에는 textContent로만 표시). 키가 앱 안에 있어 위조를 완전히 막지는 못함(참고용 확인)
+const BRAND_OK = (b) => !!b && b.length <= 20 && !/[\u0000-\u001f\u007f<>]/.test(b);
+export function encodeResult(f, faceSel, gender = 'f', expMs, brand = '', body = null) {
+  const v = encodeV1(f, faceSel, gender).slice(1), exp = Math.floor(expMs / 60000).toString(36).padStart(7, '0');
+  const core = '2' + v + exp, b = String(brand || '').trim().slice(0, 20), bi = body ? BODY_ORDER.indexOf(body.type) : -1;
+  const t = bi >= 0 ? bi + (body.gender === 'm' ? 'm' : 'f') : '';
+  const bOk = BRAND_OK(b);
+  return core + hmac(core + (t ? '#' + t : '') + (bOk ? '|' + b : '')) + (t ? '&t=' + t : '') + (bOk ? '&b=' + encodeURIComponent(b) : '');
 }
 // 돌려주는 값: null(잘못된 주소·변조) / { expired:true } (24시간 지남·예전 주소) / 결과(+ exp)
 export function decodeResult(code, now = Date.now()) {
-  code = String(code || ''); let brand = '';
-  const bi = code.indexOf('&b='); if (bi >= 0) { try { brand = decodeURIComponent(code.slice(bi + 3)); } catch { return null; } code = code.slice(0, bi); if (!brand || brand.length > 20) return null; }
-  if (/^1/.test(code)) return decodeV1(code) ? { expired: true, legacy: true } : null; // v1.7 이전 주소(유효기간 없음)는 만료로 봄
+  code = String(code || ''); let brand = '', t = '';
+  const bi = code.indexOf('&b='); if (bi >= 0) { try { brand = decodeURIComponent(code.slice(bi + 3)); } catch { return null; } code = code.slice(0, bi); if (!BRAND_OK(brand)) return null; }
+  const ti = code.indexOf('&t='); if (ti >= 0) { t = code.slice(ti + 3); code = code.slice(0, ti); if (!/^[0-9][fm]$/.test(t) || !BODY_ORDER[+t[0]]) return null; }
+  if (/^1/.test(code)) return decodeV1(code) && !t ? { expired: true, legacy: true } : null; // v1.7 이전 주소(유효기간 없음)는 만료로 봄
   const m = /^2([0-9a-z]{14})([0-9a-z]{7})([0-9a-z]{8})$/.exec(code); if (!m) return null;
-  if (hmac('2' + m[1] + m[2] + (brand ? '|' + brand : '')) !== m[3]) return null;
+  if (hmac('2' + m[1] + m[2] + (t ? '#' + t : '') + (brand ? '|' + brand : '')) !== m[3]) return null;
   const f = decodeV1('1' + m[1]); if (!f) return null;
   const exp = parseInt(m[2], 36) * 60000;
   if (!(exp > 0) || exp - now > RESULT_TTL_MS + 5 * 60000) return null; // 기기 시계 오차 5분까지만 허용
   if (now >= exp) return { expired: true, exp };
-  return { ...f, exp, brand };
+  return { ...f, exp, brand, sharedBody: t ? BODY_ORDER[+t[0]] : null, sharedBodyGender: t ? t[1] : null };
 }
 function decodeV1(code) {
   const m = /^1([0-7])([0-7])([hml])([0-2])([0-5x])(\d{8})([fm])?$/.exec(String(code || '')); if (!m) return null; // 예전(14자) 주소도 열림
@@ -62,4 +68,4 @@ function decodeV1(code) {
   const date = `${m[6].slice(0, 4)}.${m[6].slice(4, 6)}.${m[6].slice(6)}`;
   return { id, season: SEASONS[id], second: SEASONS[SEASON_ORDER[+m[2]]], conf: { level, label: { high: '높음', mid: '보통', low: '낮음' }[level] }, method: METHODS[+m[4]], date, face: null, sharedFace: face, sharedGender: m[7] || 'f', changed: false };
 }
-export const RESULT_RE = /^#r=([0-9a-z]+(?:&b=[^&#]{1,200})?)$/;
+export const RESULT_RE = /^#r=([0-9a-z]+(?:&t=[0-9][fm])?(?:&b=[^&#]{1,200})?)$/;

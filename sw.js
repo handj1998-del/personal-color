@@ -1,6 +1,6 @@
 // 오프라인 캐시 (외부 요청 없음). 버전을 올리면 새 파일로 교체됨
 // 버전 정보는 여기 한 곳에만 둠 (첫 화면 아래 표시도 이 값을 읽음)
-const VERSION = 'pc-v2.3.0', BUILD_DATE = '2026-10-15';
+const VERSION = 'pc-v2.3.1', BUILD_DATE = '2026-10-31';
 const CORE = [
   './', 'index.html', 'app.css', 'manifest.webmanifest', 'icons/favicon-64.png', 'fonts/pc-sans-var.woff2', 'fonts/cormorant-garamond-var.woff2', 'icons/how-logo-120.webp', 'icons/how-logo-120.png', 'icons/how-logo.webp', 'icons/how-logo.png',
   'js/boot.js', 'js/app.js', 'js/color.js', 'js/analyzer.js', 'js/seasons.js', 'js/face.js', 'js/card.js', 'js/style.js', 'js/ticket.js', 'js/qr.js', 'js/admin.js', 'js/qrcard.js', 'js/share.js', 'js/cosmetics.js', 'js/body.js', 'data/cosmetics.json', 'vendor/qr/jsqr.mjs', 'vendor/qr/qrcode.mjs',
@@ -15,6 +15,8 @@ const OPTIONAL = [
 ];
 // 오프라인 얼굴 인식에 꼭 필요한 파일 (SIMD/비SIMD 중 기기에 맞는 것 하나만 쓰지만 둘 다 저장)
 const FACE_FILES = OPTIONAL.filter((u) => u.startsWith('vendor/') || u.startsWith('models/'));
+// v2.3.1: 실행 중 캐시에 넣어도 되는 파일 목록 (앱 파일만)
+const ALLOW = new Set([...CORE, ...OPTIONAL].map((u) => new URL(u, self.registration.scope).href));
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then(async (c) => {
     // cache:'reload' → 브라우저 HTTP 캐시(최대 10분)를 건너뛰고 서버에서 새로 받아 버전이 섞이지 않게 함
@@ -24,7 +26,7 @@ self.addEventListener('install', (e) => {
   }).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith('pc-v') && k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 // 첫 화면의 버전 표시: 지금 실행 중인 서비스 워커(=앱 파일 캐시)의 버전을 알려 줌
 self.addEventListener('message', (e) => {
@@ -42,7 +44,10 @@ self.addEventListener('fetch', (e) => {
   // v2.2: 제품 정보(data/cosmetics.json)는 네트워크 우선 → 매주 갱신이 앱 버전 올림 없이 반영. 오프라인이면 저장본
   if (url.pathname.endsWith('/data/cosmetics.json')) {
     e.respondWith(caches.open(VERSION).then(async (c) => {
-      try { const res = await fetch(e.request.url, { cache: 'no-store' }); if (res.ok) { await c.put(new URL('data/cosmetics.json', self.registration.scope).href, res.clone()); return res; } } catch {}
+      try {
+        // v2.3.1: 느린 망에서 무한정 기다리지 않게 5초 뒤 저장본으로
+        const ac = new AbortController(), t = setTimeout(() => ac.abort(), 5000);
+        const res = await fetch(e.request.url, { cache: 'no-store', signal: ac.signal }).finally(() => clearTimeout(t)); if (res.ok) { await c.put(new URL('data/cosmetics.json', self.registration.scope).href, res.clone()); return res; } } catch {}
       return (await c.match(new URL('data/cosmetics.json', self.registration.scope).href)) || new Response('null', { status: 503, headers: { 'Content-Type': 'application/json' } });
     }));
     return;
@@ -52,7 +57,7 @@ self.addEventListener('fetch', (e) => {
     if (hit) return hit;
     try {
       const res = await fetch(e.request);
-      if (res.ok && res.type === 'basic') c.put(e.request, res.clone());
+      if (res.ok && res.type === 'basic' && ALLOW.has(url.origin + url.pathname)) c.put(e.request, res.clone()); // v2.3.1: 앱 파일만 저장
       return res;
     } catch (err) {
       if (e.request.mode === 'navigate') { const idx = await c.match('index.html'); if (idx) return idx; }

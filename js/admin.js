@@ -100,7 +100,7 @@ export function initAdmin({ $, go, toast, ask, store, getScreen, openSyncScan = 
     $('listBatch').innerHTML = '<option value="">전체 묶음</option>' + [...groups].map(([k, g]) => `<option value="${esc(k)}" ${k === sel ? 'selected' : ''}>${esc(g.memo || '메모 없음')} · ${new Date(g.at).toLocaleDateString('ko-KR')} · ${g.n}장</option>`).join('');
     const rows = listItems(), cnt = { new: 0, used: 0, revoked: 0, expired: 0 }; rows.forEach((r) => cnt[r.k]++);
     $('listSummary').textContent = `${rows.length}장 · 미사용 ${cnt.new} · 사용됨 ${cnt.used} · 취소 ${cnt.revoked} · 만료 ${cnt.expired} (이 기기의 사용 기록 ${used}개)`;
-    $('qList').innerHTML = rows.length ? rows.map(({ it, k, l }) => `<div class="qrow" data-id="${it.id}"><span class="mono">${it.id.slice(0, 4)}-${it.id.slice(4)}</span><span class="qd">${fmtDay(it.issued)}${it.exp ? ' ~ ' + fmtDay(it.exp) : ' · 기한 없음'}${it.memo ? ' · ' + esc(it.memo) : ''}</span><span class="st st-${k}">${l}</span>${k === 'new' ? `<button class="btn sm" type="button" data-revoke="${it.id}">취소</button>` : '<span></span>'}</div>`).join('') : '<p class="sub">해당하는 진단권이 없어요.</p>';
+    $('qList').innerHTML = rows.length ? rows.map(({ it, k, l }) => `<div class="qrow" data-id="${esc(it.id)}"><span class="mono">${esc(it.id.slice(0, 4))}-${esc(it.id.slice(4))}</span><span class="qd">${fmtDay(it.issued)}${it.exp ? ' ~ ' + fmtDay(it.exp) : ' · 기한 없음'}${it.memo ? ' · ' + esc(it.memo) : ''}</span><span class="st st-${k}">${l}</span>${k === 'new' ? `<button class="btn sm" type="button" data-revoke="${esc(it.id)}">취소</button>` : '<span></span>'}</div>`).join('') : '<p class="sub">해당하는 진단권이 없어요.</p>';
   }
   // ---------- 통계 ----------
   function renderStats() {

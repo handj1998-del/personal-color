@@ -1,8 +1,8 @@
 {
- "version": 4,
- "verifiedAt": "2026-10-26",
- "label": "제품 정보 2026.10.26 기준",
- "notice": "2026.10 기준, 판매 종료·가격 변동 가능. 색상은 화면에 따라 다르게 보일 수 있어요. 타입 추천은 매장 기준이며 브랜드의 공식 분류가 아니에요.",
+ "version": 5,
+ "verifiedAt": "2026-11-02",
+ "label": "제품 정보 2026.11.02 기준",
+ "notice": "2026.11 기준, 판매 종료·가격 변동 가능. 색상은 화면에 따라 다르게 보일 수 있어요. 타입 추천은 매장 기준이며 브랜드의 공식 분류가 아니에요.",
  "hexNote": "hex는 근사 스와치(공식 색 설명·호수 이름 기준)이며 실제 제품 색과 다를 수 있어요.",
  "products": {
   "jlt": {
@@ -11,7 +11,7 @@
    "cat": "lip",
    "goodsNo": "A000000241210",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000241210",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-26)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-11-02)"
   },
   "btc": {
    "brand": "롬앤",
@@ -19,7 +19,7 @@
    "cat": "blush",
    "goodsNo": "A000000172610",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000172610",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-26)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-11-02)"
   },
   "btp": {
    "brand": "롬앤",
@@ -27,7 +27,7 @@
    "cat": "eye",
    "goodsNo": "A000000148390",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000148390",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-26)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-11-02)"
   },
   "mgt": {
    "brand": "페리페라",
@@ -35,7 +35,7 @@
    "cat": "lip",
    "goodsNo": "A000000244834",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000244834",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-26)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-11-02)"
   },
   "cpe": {
    "brand": "클리오",
@@ -43,7 +43,7 @@
    "cat": "eye",
    "goodsNo": "A000000188988",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000188988",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-26)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-11-02)"
   },
   "vlt": {
    "brand": "3CE",
@@ -51,7 +51,7 @@
    "cat": "lip",
    "goodsNo": "A000000232518",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000232518",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-26)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-11-02)"
   },
   "dsp": {
    "brand": "데이지크",
@@ -59,7 +59,7 @@
    "cat": "eye",
    "goodsNo": "A000000147801",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000147801",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-26)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-11-02)"
   },
   "dbc": {
    "brand": "데이지크",
@@ -67,7 +67,7 @@
    "cat": "blush",
    "goodsNo": "A000000164726",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000164726",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-26)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-11-02)"
   },
   "hme": {
    "brand": "힌스",
@@ -75,7 +75,7 @@
    "cat": "lip",
    "goodsNo": "A000000148546",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000148546",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-26)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-11-02)"
   },
   "adt": {
    "brand": "어뮤즈",
@@ -83,7 +83,7 @@
    "cat": "lip",
    "goodsNo": "A000000158147",
    "url": "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000158147",
-   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-10-26)"
+   "shadeSource": "올리브영 상품 페이지 옵션 목록 (브라우저 확인 2026-11-02)"
   }
  },
  "types": {
@@ -178,8 +178,8 @@
    },
    {
     "p": "jlt",
-    "shade": "28 설화 딸기",
-    "hex": "#e88896",
+    "shade": "45 밀크 베리",
+    "hex": "#e48a9c",
     "hexApprox": true,
     "verify": "verified"
    },
@@ -252,8 +252,8 @@
    },
    {
     "p": "mgt",
-    "shade": "29 콩콩라떼",
-    "hex": "#b87a68",
+    "shade": "17 이로지무화과",
+    "hex": "#a8665e",
     "hexApprox": true,
     "verify": "verified"
    },
@@ -296,8 +296,8 @@
    },
    {
     "p": "btc",
-    "shade": "T01 태니칩",
-    "hex": "#c7836a",
+    "shade": "N02 바인 누드",
+    "hex": "#c48a78",
     "hexApprox": true,
     "verify": "verified"
    },
@@ -377,14 +377,14 @@
    },
    {
     "p": "btp",
-    "shade": "07 베리푸시아 가든",
-    "hex": "#9a4a66",
+    "shade": "3호 로즈버드",
+    "hex": "#a05868",
     "hexApprox": true,
     "verify": "verified"
    }
   ]
  },
  "verify": {
-  "verified": "올리브영 상품 페이지에서 판매 중·옵션명 브라우저 확인 (2026-10-26)"
+  "verified": "올리브영 상품 페이지에서 판매 중·옵션명 브라우저 확인 (2026-11-02)"
  }
 }
